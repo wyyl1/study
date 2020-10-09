@@ -326,4 +326,47 @@ sudo apt install kubeadm=1.19.1-00 -y
 kubeadm config print init-defaults [flags]
 ```
 
+## 常用命令
+
+- kubectl get 指令的作用，就是从 Kubernetes 里面获取（GET）指定的 API 对象。可以看到，在这里我还加上了一个 -l 参数，即获取所有匹配 app: nginx 标签的 Pod。需要注意的是，在命令行中，所有 key-value 格式的参数，都使用“=”而非“:”表示。
+
+```cmd
+kubectl get pods -l app=nginx
+```
+
+- 使用 kubectl exec 指令，进入到这个 Pod 当中（即容器的 Namespace 中）查看这个 Volume 目录：
+
+```cmd
+$ kubectl exec -it nginx-deployment-5c678cfb6d-lg9lw -- /bin/bash
+```
+
+## 沈家门
+
+- 高佳庄
+- 舟山海鲜大排档31号（希尔顿酒店对面）
+
+## 宁波
+
+- 住天一广场附近吃饭很方便
+
+- 缸鸭狗
+  - 不用排很久的队
+  - 适合游客，比较贵
+
+- 甬上名灶
+  - 早点去，还有希望排的上队
+  - 分量可以 
+
+- 阿拉名灶
+  - 最好营业前1小时到，取号排队，不然很可能吃不上
+  - 打包好像可以不用排队（东坡肉不能打包）
+  - 分量可以
+  - 点菜的地方有个店家整理的推荐排行
+
+- 子曰糊涂
+  - 黄花鱼锅贴很好吃 
+
+## 台州·天台
+
+- 御清斋
 
