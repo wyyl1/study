@@ -773,4 +773,537 @@ $ /snap/bin/bcc.opensnoop
 - 阻塞 / 非阻塞针对的是 I/O **调用者**（即应用程序）
 - 同步 / 异步针对的是 I/O **执行者**（即系统）
 
+## [34 | 关于 Linux 网络，你必须知道这些（下）](https://time.geekbang.org/column/article/81057)
+
+### 性能指标
+
+- **带宽**，表示链路的最大传输速率，单位通常为 b/s （比特 / 秒）。
+- **吞吐量**，表示单位时间内成功传输的数据量，单位通常为 b/s（比特 / 秒）或者 B/s（字节 / 秒）。吞吐量受带宽限制，而吞吐量 / 带宽，也就是该网络的使用率。
+- **延时**，表示从网络请求发出后，一直到收到远端响应，所需要的时间延迟。在不同场景中，这一指标可能会有不同含义。比如，它可以表示，建立连接需要的时间（比如 TCP 握手延时），或一个数据包往返所需的时间（比如 RTT）。
+- **PPS**，是 Packet Per Second（包 / 秒）的缩写，表示以网络包为单位的传输速率。PPS 通常用来评估网络的转发能力，比如硬件交换机，通常可以达到线性转发（即 PPS 可以达到或者接近理论最大值）。而基于 Linux 服务器的转发，则容易受网络包大小的影响。
+- 除了这些指标，**网络的可用性**（网络能否正常通信）、**并发连接数**（TCP 连接数量）、**丢包率**（丢包百分比）、**重传率**（重新传输的网络包比例）等也是常用的性能指标。
+
+### 网络配置
+
+可以使用 ifconfig 或者 ip 命令，来查看网络的配置
+
+ - ifconfig 和 ip **只显示了网络接口收发数据包的统计信息**
+ - ip 工具提供了更丰富的功能和更易用的接口
+
+ 以网络接口 eth0 为例，你可以运行下面的两个命令，查看它的配置和状态：
+ 
+ ```cmd
+ $ ifconfig eth0
+ 
+ $ ip -s addr show dev eth0
+ ```
+
+#### 1. 网络接口的状态标志
+表示物理网络是连通的，即网卡已经连接到了交换机或者路由器中
+
+- ifconfig 输出中的 RUNNING 
+- ip 输出中的 LOWER_UP
+
+#### 2. MTU 的大小
+MTU 默认大小是 1500，根据网络架构的不同（比如是否使用了 VXLAN 等叠加网络），你可能需要调大或者调小 MTU 的数值。
+
+#### 3. 网络接口的 IP 地址、子网以及 MAC 地址
+这些都是保障网络功能正常工作所必需的，需要确保配置正确。
+
+#### 4. 网络收发的字节数、包数、错误数以及丢包情况
+特别是 TX 和 RX 部分的 errors、dropped、overruns、carrier 以及 collisions 等指标不为 0 时，通常表示出现了网络 I/O 问题。
+
+- **errors** 表示发生错误的数据包数，比如校验错误、帧同步错误等；
+
+- **dropped** 表示丢弃的数据包数，即数据包已经收到了 Ring Buffer，但因为内存不足等原因丢包；
+- **overruns** 表示超限数据包数，即网络 I/O 速度过快，导致 Ring Buffer 中的数据包来不及处理（队列满）而导致的丢包；
+- **carrier** 表示发生 carrirer 错误的数据包数，比如双工模式不匹配、物理电缆出现问题等；collisions 表示碰撞数据包数。
+
+### 套接字信息
+
+网络协议栈中的统计信息，可以用 netstat 或者 ss ，来查看套接字、网络栈、网络接口以及路由表的信息。
+
+推荐使用 ss 来查询网络的连接信息，因为它比 netstat 提供了更好的性能（速度更快）。
+
+```cmd
+# head -n 3 表示只显示前面3行
+# -l 表示只显示监听套接字
+# -n 表示显示数字地址和端口(而不是名字)
+# -p 表示显示进程信息
+$ netstat -nlp | head -n 3
+
+# -l 表示只显示监听套接字
+# -t 表示只显示 TCP 套接字
+# -n 表示显示数字地址和端口(而不是名字)
+# -p 表示显示进程信息
+$ ss -ltnp | head -n 3
+```
+
+- netstat 和 ss 的输出也是类似的，都展示了套接字的状态、接收队列、发送队列、本地地址、远端地址、进程 PID 和进程名称等。
+
+- 接收队列（Recv-Q）和发送队列（Send-Q）需要你特别关注，它们通常应该是 0。当你发现它们不是 0 时，说明有网络包的堆积发生。当然还要注意，在不同套接字状态下，它们的含义不同。
+    - 当套接字处于连接状态（Established）时
+        - Recv-Q 表示套接字缓冲还没有被应用程序取走的字节数（即接收队列长度）。
+        - Send-Q 表示还没有被远端主机确认的字节数（即发送队列长度）。
+    
+    - 当套接字处于监听状态（Listening）时
+        - Recv-Q 表示**全连接**队列的长度。
+        - Send-Q 表示**全连接**队列的最大长度。
+
+            - 全连接，是指服务器收到了客户端的 ACK，完成了 TCP 三次握手，然后就会把这个连接挪到全连接队列中。这些全连接中的套接字，还需要被 accept() 系统调用取走，服务器才可以开始真正处理客户端的请求。与全连接队列相对应的，还有一个半连接队列。
+
+            - 半连接是指还没有完成 TCP 三次握手的连接，连接只进行了一半。服务器收到了客户端的 SYN 包后，就会把这个连接放到半连接队列中，然后再向客户端发送 SYN+ACK 包。
+
+### 协议栈统计信息
+
+使用 netstat 或 ss ，也可以查看协议栈的信息
+
+```cmd
+$ netstat -s
+
+$ ss -s
+```
+
+ss 只显示已经连接、关闭、孤儿套接字等简要统计，而 netstat 则提供的是更详细的网络协议栈信息。
+
+### 网络吞吐和 PPS
+
+- 推荐使用 sar
+
+- 给 sar 增加 -n 参数就可以查看网络的统计信息，比如网络接口（DEV）、网络接口错误（EDEV）、TCP、UDP、ICMP 等等。执行下面的命令，你就可以得到网络接口统计信息：
+
+```cmd
+# 数字1表示每隔1秒输出一组数据
+$ sar -n DEV 1
+```
+
+- **rxpck/s 和 txpck/s** 分别是接收和发送的 PPS，单位为包 / 秒。
+- **rxkB/s 和 txkB/s** 分别是接收和发送的吞吐量，单位是 KB/ 秒。
+- **rxcmp/s 和 txcmp/s** 分别是接收和发送的压缩数据包数，单位是包 / 秒。
+- **%ifutil** 是网络接口的使用率，即半双工模式下为 (rxkB/s+txkB/s)/Bandwidth，而全双工模式下为 max(rxkB/s, txkB/s)/Bandwidth。
+
+#### 查看网卡速度
+
+```cmd
+$ ethtool eth0 | grep Speed
+```
+
+### 连通性和延时
+
+使用 ping ，来测试远程主机的连通性和延时，而这基于 ICMP 协议
+
+```cmd
+# -c3表示发送三次ICMP包后停止
+$ ping -c3 114.114.114.114
+```
+
+ping 的输出，可以分为两部分。
+
+- 第一部分，是每个 ICMP 请求的信息，包括 ICMP 序列号（icmp_seq）、TTL（生存时间，或者跳数）以及往返延时。
+- 第二部分，则是三次 ICMP 请求的汇总。
+
+## [35 | 基础篇：C10K 和 C1000K 回顾](https://time.geekbang.org/column/article/81268)
+
+### I/O 模型优化
+
+I/O 多路复用（I/O Multiplexing）
+
+#### 第一种，使用非阻塞 I/O 和水平触发通知，比如使用 select 或者 poll
+
+- 最大优点，是对应用程序比较友好，它的 API 非常简单。
+- select 和 poll 还有一些其他的限制
+    - select 轮询时间复杂度 O(n^2)
+    - poll 轮询时间复杂度 O(n)
+    - 内核空间与用户空间切换，增加了处理成本
+
+#### 第二种，使用非阻塞 I/O 和边缘触发通知，比如 epoll
+
+- epoll 使用红黑树，在内核中管理文件描述符的集合，这样，就不需要应用程序在每次操作时都传入、传出这个集合。
+- epoll 使用事件驱动的机制，只关注有 I/O 事件发生的文件描述符，不需要轮询扫描整个集合。
+
+#### 第三种，使用异步 I/O（Asynchronous I/O，简称为 AIO）
+- 由于异步 I/O 跟我们的直观逻辑不太一样，想要使用的话，一定要小心设计，其使用难度比较高。
+
+### 工作模型优化
+
+- 第一种，主进程 + 多个 worker 子进程，这也是最常用的一种模型。
+    - 例如 Nginx
+    - 为了避免惊群问题， Nginx 在每个 worker 进程中，都增加一个了全局锁（accept_mutex）。
+
+- 第二种，监听到相同端口的多进程模型。
+    - 由于内核确保了只有一个进程被唤醒，就不会出现惊群问题
+    - Nginx 在 1.9.1 中就已经支持了这种模式
+
+### 小结
+
+- 从 C10K 到 C100K ，可能只需要增加系统的物理资源就可以满足；
+- 从 C100K 到 C1000K ，就不仅仅是增加物理资源就能解决的问题了。
+- 实现 C10M 
+    - 需要用 XDP 的方式，在内核协议栈之前处理网络包；
+    - 或者用 DPDK 直接跳过网络协议栈，在用户空间通过轮询的方式直接处理网络包。
+
+## [36 | 套路篇：怎么评估系统的网络性能？](https://time.geekbang.org/column/article/81497)
+
+### 各协议层的性能测试
+
+#### 转发性能
+
+- hping3 测试网络包处理能力的性能工具
+- [pktgen](https://wiki.linuxfoundation.org/networking/pktgen) Linux 内核自带的高性能网络测试工具
+
+```cmd
+$ modprobe pktgen
+$ ps -ef | grep pktgen | grep -v grep
+root     26384     2  0 06:17 ?        00:00:00 [kpktgend_0]
+root     26385     2  0 06:17 ?        00:00:00 [kpktgend_1]
+$ ls /proc/net/pktgen/
+kpktgend_0  kpktgend_1  pgctrl
+```
+
+#### TCP/UDP 性能
+
+iperf 和 netperf 都是最常用的网络性能测试工具，测试 TCP 和 UDP 的吞吐量。它们都以客户端和服务器通信的方式，测试一段时间内的平均吞吐量。
+
+##### iperf
+
+```cmd
+$ apt-get install iperf3
+```
+
+需要2台机器进行测试：客户端、服务端
+
+#### HTTP 性能
+
+ab、webbench 等，都是常用的 HTTP 压力测试工具。其中，ab 是 Apache 自带的 HTTP 压测工具，主要测试 HTTP 服务的每秒请求数、请求延迟、吞吐量以及请求延迟的分布情况等。
+
+#### 应用负载性能
+
+wrk、TCPCopy、Jmeter 或者 LoadRunner
+
+## [37 | 案例篇：DNS 解析时快时慢，我该怎么办？](https://time.geekbang.org/column/article/81850)
+
+- 在应用层，我们关注的是应用程序的并发连接数、每秒请求数、处理延迟、错误数等，可以使用 wrk、JMeter 等工具，模拟用户的负载，得到想要的测试结果。
+
+- 在传输层，我们关注的是 TCP、UDP 等传输层协议的工作状况，比如 TCP 连接数、 TCP 重传、TCP 错误数等。此时，你可以使用 iperf、netperf 等，来测试 TCP 或 UDP 的性能。
+- 再向下到网络层，我们关注的则是网络包的处理能力，即 PPS。Linux 内核自带的 pktgen，就可以帮你测试这个指标。
+- 由于低层协议是高层协议的基础，所以一般情况下，我们所说的网络优化，实际上包含了整个网络协议栈的所有层的优化。当然，性能要求不同，具体需要优化的位置和目标并不完全相同。
+
+
+以极客时间的网站 time.geekbang.org 为例，执行下面的 nslookup 命令，就可以查询到这个域名的 A 记录，可以看到，它的 IP 地址是 39.106.233.176：
+
+```cmd
+$ nslookup time.geekbang.org
+# 域名服务器及端口信息
+Server:    114.114.114.114
+Address:  114.114.114.114#53
+
+# 非权威查询结果
+Non-authoritative answer:
+Name:  time.geekbang.org
+Address: 39.106.233.17
+```
+
+常用的 DNS 解析工具 **dig** ，就提供了 trace 功能，可以展示递归查询的整个过程
+
+```cmd
+# +trace表示开启跟踪查询
+# +nodnssec表示禁止DNS安全扩展
+$ dig +trace +nodnssec www.aoeai.com
+```
+
+dig trace 的输出，主要包括四部分。
+
+- 第一部分，是从 114.114.114.114 查到的一些根域名服务器（.）的 NS 记录。
+- 第二部分，是从 NS 记录结果中选一个（h.root-servers.net），并查询顶级域名 org. 的 NS 记录。
+- 第三部分，是从 org. 的 NS 记录中选择一个（b0.org.afilias-nst.org），并查询二级域名 geekbang.org. 的 NS 服务器。
+- 最后一部分，就是从 geekbang.org. 的 NS 服务器（dns10.hichina.com）查询最终主机 time.geekbang.org. 的 A 记录。
+
+**dnsmasq** 是最常用的 DNS 缓存服务之一，还经常作为 DHCP 服务来使用。它的安装和配置都比较简单，性能也可以满足绝大多数应用程序对 DNS 缓存的需求。
+
+### 小结
+- 使用 **HTTPDNS** 取代常规的 DNS 解析。这是很多移动应用会选择的方法，特别是如今域名劫持普遍存在，使用 HTTP 协议绕过链路中的 DNS 服务器，就可以避免域名劫持的问题。
+- 基于 DNS 的全局负载均衡（GSLB）。这不仅为服务提供了负载均衡和高可用的功能，还可以根据用户的位置，返回距离最近的 IP 地址。
+
+## [38 | 案例篇：怎么使用 tcpdump 和 Wireshark 分析网络流量？](https://time.geekbang.org/column/article/82321)
+
+tcpdump 和 [Wireshark](https://www.wireshark.org/) 就是最常用的网络抓包和分析工具，更是分析网络性能必不可少的利器。
+
+- tcpdump 仅支持命令行格式使用，常用在服务器中抓取和分析网络包。
+- Wireshark 除了可以抓包外，还提供了强大的图形界面和汇总分析工具，在分析复杂的网络情景时，尤为简单和实用。
+- 在实际分析网络性能时，先用 tcpdump 抓包，后用 Wireshark 分析，也是一种常用的方法。
+
+```cmd
+$ apt-get install tcpdump wireshark
+```
+
+tcpdump 使用见原文插图
+
+执行下面的命令，把抓取的网络包保存到 ping.pcap 文件中：
+
+```cmd
+$ tcpdump -nn udp port 53 or host 35.190.27.188 -w ping.pcap
+```
+
+用 scp 把它拷贝到本地来
+
+```cmd
+scp host-ip/path/ping.pcap .
+```
+
+然后，再用 **Wireshark** 打开它
+
+wireshark 的使用推荐阅读林沛满的《Wireshark网络分析就这么简单》和《Wireshark网络分析的艺术》
+
+## [40 | 案例篇：网络请求延迟变大了，我该怎么办？](https://time.geekbang.org/column/article/82833)
+
+- ping 基于 **ICMP 协议**，它通过计算 ICMP 回显响应报文与 ICMP 回显请求报文的时间差，来获得往返延时。
+
+- 很多网络服务会把 ICMP 禁止掉，这也就导致我们无法用 ping ，来测试网络服务的可用性和往返延时。这时，你可以用 **traceroute** 或 **hping3** 的 TCP 和 UDP 模式，来获取网络延迟。
+
+以 baidu.com 为例，你可以执行下面的 hping3 命令，测试你的机器到百度搜索服务器的网络延迟：
+
+```cmd
+# -c表示发送3次请求，-S表示设置TCP SYN，-p表示端口号为80
+$ hping3 -c 3 -S -p 80 baidu.com
+```
+
+用 traceroute ，也可以得到类似结果
+
+```cmd
+# --tcp表示使用TCP协议，-p表示端口号，-n表示不对结果中的IP地址执行反向域名解析
+$ traceroute --tcp -p 80 -n baidu.com
+```
+
+## [41 | 案例篇：如何优化 NAT 性能？（上）](https://time.geekbang.org/column/article/83189)
+
+另一个可能导致网络延迟的因素，即网络地址转换（Network Address Translation），缩写为 NAT
+
+## [42 | 案例篇：如何优化 NAT 性能？（下）](https://time.geekbang.org/column/article/83520)
+
+[SystemTap](https://sourceware.org/systemtap/) 是 Linux 的一种动态追踪框架，它把用户提供的脚本，转换为内核模块来执行，用来监测和跟踪内核的行为。
+
+## [43 | 套路篇：网络性能优化的几个思路（上）](https://time.geekbang.org/column/article/83783)
+
+### 为了提高网络的吞吐量，你通常需要调整这些缓冲区的大小
+
+- 增大每个套接字的缓冲区大小 net.core.optmem_max；
+- 增大套接字接收缓冲区大小 net.core.rmem_max 和发送缓冲区大小 net.core.wmem_max；
+- 增大 TCP 接收缓冲区大小 net.ipv4.tcp_rmem 和发送缓冲区大小 net.ipv4.tcp_wmem。
+- 更多见图
+
+### 除此之外，套接字接口还提供了一些配置选项，用来修改网络连接的行为：
+- 为 TCP 连接设置 TCP_NODELAY 后，就可以禁用 Nagle 算法；
+- 为 TCP 连接开启 TCP_CORK 后，可以让小包聚合成大包后再发送（注意会阻塞小包的发送）；
+- 使用 SO_SNDBUF 和 SO_RCVBUF ，可以分别调整套接字发送缓冲区和接收缓冲区的大小。
+
+## [44 | 套路篇：网络性能优化的几个思路（下）](https://time.geekbang.org/column/article/84003)
+
+### 网络性能优化
+
+#### 传输层
+
+- 传输层最重要的是 TCP 和 UDP 协议，所以这儿的优化，其实主要就是对这两种协议的优化。
+
+##### TCP 协议的优化
+
+- 第一类，在请求数比较大的场景下，你可能会看到大量处于 TIME_WAIT 状态的连接，它们会占用大量内存和端口资源。这时，我们可以优化与 TIME_WAIT 状态相关的内核选项，比如采取下面几种措施。
+    - 增大处于 TIME_WAIT 状态的连接数量 net.ipv4.tcp_max_tw_buckets ，并增大连接跟踪表的大小 net.netfilter.nf_conntrack_max。
+    - 减小 net.ipv4.tcp_fin_timeout 和 net.netfilter.nf_conntrack_tcp_timeout_time_wait ，让系统尽快释放它们所占用的资源。
+    - 开启端口复用 net.ipv4.tcp_tw_reuse。这样，被 TIME_WAIT 状态占用的端口，还能用到新建的连接中。
+    - 增大本地端口的范围 net.ipv4.ip_local_port_range 。这样就可以支持更多连接，提高整体的并发能力。
+    - 增加最大文件描述符的数量。你可以使用 fs.nr_open 和 fs.file-max ，分别增大进程和系统的最大文件描述符数；或在应用程序的 systemd 配置文件中，配置 LimitNOFILE ，设置应用程序的最大文件描述符数。
+
+- 第二类，为了缓解 SYN FLOOD 等，利用 TCP 协议特点进行攻击而引发的性能问题，你可以考虑优化与 SYN 状态相关的内核选项
+- 第三类，在长连接的场景中，通常使用 Keepalive 来检测 TCP 连接的状态，以便对端连接断开后，可以自动回收。但是，系统默认的 Keepalive 探测间隔和重试次数，一般都无法满足应用程序的性能要求。所以，这时候你需要优化与 Keepalive 相关的内核选项
+
+ **优化 TCP 性能时，你还要注意，如果同时使用不同优化方法，可能会产生冲突**
+
+- 网络请求延迟的案例中我们曾经分析过的，服务器端开启 Nagle 算法，而客户端开启延迟确认机制，就很容易导致网络延迟增大。
+- 在使用 NAT 的服务器上，如果开启 net.ipv4.tcp_tw_recycle ，就很容易导致各种连接失败。实际上，由于坑太多，这个选项在内核的 4.1 版本中已经删除了。
+
+##### UDP 的优化
+- 跟上篇套接字部分提到的一样，增大套接字缓冲区大小以及 UDP 缓冲区范围；
+- 跟前面 TCP 部分提到的一样，增大本地端口号的范围；
+- 根据 MTU 大小，调整 UDP 数据包的大小，减少或者避免分片的发生。
+
+#### 网络层
+
+网络层，负责网络包的封装、寻址和路由，包括 IP、ICMP 等常见协议。在网络层，最主要的优化，其实就是对路由、 IP 分片以及 ICMP 等进行调优。
+
+##### 第一种，从路由和转发的角度出发，你可以调整下面的内核选项
+- 在需要转发的服务器中，比如用作 NAT 网关的服务器或者使用 Docker 容器时，开启 IP 转发，即设置 net.ipv4.ip_forward = 1。
+
+- 调整数据包的生存周期 TTL，比如设置 net.ipv4.ip_default_ttl = 64。注意，增大该值会降低系统性能。
+- 开启数据包的反向地址校验，比如设置 net.ipv4.conf.eth0.rp_filter = 1。这样可以防止 IP 欺骗，并减少伪造 IP 带来的 DDoS 问题。
+
+##### 第二种，从分片的角度出发，最主要的是调整 MTU（Maximum Transmission Unit）的大小。
+
+##### 第三种，从 ICMP 的角度出发，为了避免 ICMP 主机探测、ICMP Flood 等各种网络问题，你可以通过内核选项，来限制 ICMP 的行为。
+
+- 可以禁止 ICMP 协议，即设置 net.ipv4.icmp_echo_ignore_all = 1。这样，外部主机就无法通过 ICMP 来探测主机。
+
+- 可以禁止广播 ICMP，即设置 net.ipv4.icmp_echo_ignore_broadcasts = 1。
+
+#### 链路层
+
+链路层负责网络包在物理网络中的传输，比如 MAC 寻址、错误侦测以及通过网卡传输网络帧等。自然，链路层的优化，也是围绕这些基本功能进行的。
+
+##### 由于网卡收包后调用的中断处理程序（特别是软中断），需要消耗大量的 CPU。所以，将这些中断处理程序调度到不同的 CPU 上执行，就可以显著提高网络吞吐量。这通常可以采用下面两种方法。
+
+- 可以为网卡硬中断配置 CPU 亲和性（smp_affinity），或者开启 irqbalance 服务。
+- 可以开启 RPS（Receive Packet Steering）和 RFS（Receive Flow Steering），将应用程序和软中断的处理，调度到相同 CPU 上，这样就可以增加 CPU 缓存命中率，减少网络延迟。
+
+##### 现在的网卡都有很丰富的功能，原来在内核中通过软件处理的功能，可以卸载到网卡中，通过硬件来执行。
+- **TSO**（TCP Segmentation Offload）和 UFO（UDP Fragmentation Offload）：在 TCP/UDP 协议中直接发送大包；而 TCP 包的分段（按照 MSS 分段）和 UDP 的分片（按照 MTU 分片）功能，由网卡来完成 。
+
+- **GSO**（Generic Segmentation Offload）：在网卡不支持 TSO/UFO 时，将 TCP/UDP 包的分段，延迟到进入网卡前再执行。这样，不仅可以减少 CPU 的消耗，还可以在发生丢包时只重传分段后的包。
+- **LRO**（Large Receive Offload）：在接收 TCP 分段包时，由网卡将其组装合并后，再交给上层网络处理。不过要注意，在需要 IP 转发的情况下，不能开启 LRO，因为如果多个包的头部信息不一致，LRO 合并会导致网络包的校验错误。
+- **GRO**（Generic Receive Offload）：GRO 修复了 LRO 的缺陷，并且更为通用，同时支持 TCP 和 UDP。RSS（Receive Side Scaling）：也称为多队列接收，它基于硬件的多个接收队列，来分配网络接收进程，这样可以让多个 CPU 来处理接收到的网络包。
+- **VXLAN** 卸载：也就是让网卡来完成 VXLAN 的组包功能。
+
+##### 对于网络接口本身，也有很多方法，可以优化网络的吞吐量
+- 可以开启网络接口的多队列功能。这样，每个队列就可以用不同的中断号，调度到不同 CPU 上执行，从而提升网络的吞吐量。
+
+- 可以增大网络接口的缓冲区大小，以及队列长度等，提升网络传输的吞吐量（注意，这可能导致延迟增大）。
+- 可以使用 Traffic Control 工具，为不同网络流量配置 QoS。
+
+##### C10M
+- DPDK
+- XDP
+
+### 小结
+
+- 在应用程序中，主要是优化 I/O 模型、工作模型以及应用层的网络协议；
+
+- 在套接字层中，主要是优化套接字的缓冲区大小；
+- 在传输层中，主要是优化 TCP 和 UDP 协议；
+- 在网络层中，主要是优化路由、转发、分片以及 ICMP 协议；最后，在链路层中，主要是优化网络包的收发、网络功能卸载以及网卡选项。
+
+## [49 | 案例篇：内核线程 CPU 利用率太高，我该怎么办？](https://time.geekbang.org/column/article/86330)
+
+### 火焰图
+
+针对 perf 汇总数据的展示问题，Brendan Gragg 发明了[火焰图](http://www.brendangregg.com/flamegraphs.html)，通过矢量图的形式，更直观展示汇总结果。
+
+- **横轴表示采样数和采样比例**。一个函数占用的横轴越宽，就代表它的执行时间越长。同一层的多个函数，则是按照字母来排序。
+
+- **纵轴表示调用栈**，由下往上根据调用关系逐个展开。换句话说，上下相邻的两个函数中，下面的函数，是上面函数的父函数。这样，调用栈越深，纵轴就越高。
+- 另外，要注意图中的颜色，并没有特殊含义，只是用来区分不同的函数。
+
+## [50 | 案例篇：动态追踪怎么用？（上）](https://time.geekbang.org/column/article/86490)
+
+使用 perf 对系统内核线程进行分析时，内核线程依然还在正常运行中，所以这种方法也被称为动态追踪技术。
+
+**动态追踪技术，通过探针机制，来采集内核或者应用程序的运行信息，从而可以不用修改内核和应用程序的代码，就获得丰富的信息，帮你分析、定位想要排查的问题。**
+
+相比以往的进程级跟踪方法（比如 ptrace），动态追踪往往只会带来很小的性能损耗（通常在 5% 或者更少）。
+
+### 动态追踪
+
+常见的动态追踪方法包括 ftrace、perf、eBPF 以及 SystemTap
+
+#### ftrace
+
+- 当你已经定位了某个内核函数，但不清楚它的实现原理时，就可以用 ftrace 来跟踪它的执行过程。
+
+- 提供了多个跟踪器，用于跟踪不同类型的信息，比如函数调用、中断关闭、进程调度等。具体支持的跟踪器取决于系统配置。
+
+```cmd
+$ apt-get install trace-cmd
+```
+
+## [51 | 案例篇：动态追踪怎么用？（下）](https://time.geekbang.org/column/article/86710)
+
+### perf
+- 查找应用程序或者内核中的热点函数，从而定位性能瓶颈
+
+- 使用火焰图动态展示 perf 的事件记录，从而更直观地发现了问题
+- perf 可以用来分析 CPU cache、CPU 迁移、分支预测、指令周期等各种硬件事件；
+- perf 也可以只对感兴趣的事件进行动态追踪。
+
+同 ftrace 一样，你也可以通过 perf list ，查询所有支持的事件：
+
+```cmd
+$ perf list
+```
+
+很多人只看到了 strace 简单易用的好处，却忽略了它对进程性能带来的影响。从原理上来说，**strace 基于系统调用 ptrace 实现**，这就带来了两个问题。
+
+- 由于 ptrace 是系统调用，就需要在内核态和用户态切换。当事件数量比较多时，繁忙的切换必然会影响原有服务的性能；
+- ptrace 需要借助 SIGSTOP 信号挂起目标进程。这种信号控制和进程挂起，会影响目标进程的行为。
+
+在性能敏感的应用（比如数据库）中，不推荐你用 **strace** （或者其他**基于 ptrace 的性能工具**）去排查和调试。
+
+### eBPF 和 BCC
+
+ftrace 和 perf 的功能已经比较丰富了，不过，它们有一个共同的缺陷，那就是不够灵活，没法像 DTrace 那样通过脚本自由扩展。
+
+### SystemTap 和 sysdig
+- SystemTap 只在 RHEL 系统中好用，在其他系统中则容易出现各种异常问题
+
+- sysdig 则是随着容器技术的普及而诞生的，主要用于容器的动态追踪。
+- sysdig 汇集了一些列性能工具的优势
+- sysdig = strace + tcpdump + htop + iftop + lsof + docker inspect
+- 在最新的版本中（内核版本 >= 4.14），sysdig 还可以通过 eBPF 来进行扩展，所以，也可以用来追踪内核中的各种函数和事件。
+
+### 如何选择追踪工具
+见原文插图
+
+- 在新版的内核中，eBPF 和 BCC 是最灵活的动态追踪方法
+
+## [53 | 套路篇：系统监控的综合思路](https://time.geekbang.org/column/article/87980)
+
+### USE 法
+一种专门用于性能监控的 USE（Utilization Saturation and Errors）法。USE 法把系统资源的性能指标，简化成了三个类别，即使用率、饱和度以及错误数。
+
+- 使用率，表示资源用于服务的时间或容量百分比。100% 的使用率，表示容量已经用尽或者全部时间都用于服务。
+
+- 饱和度，表示资源的繁忙程度，通常与等待队列的长度相关。100% 的饱和度，表示资源无法接受更多的请求。
+- 错误数表示发生错误的事件个数。错误数越多，表明系统的问题越严重。
+
+无论是对 CPU、内存、磁盘和文件系统、网络等硬件资源，还是对文件描述符数、连接数、连接跟踪数等软件资源，USE 方法都可以帮你快速定位出，是哪一种系统资源出现了性能瓶颈。
+
+### 监控系统
+
+常见开源的监控工具：Zabbix、Nagios、Prometheus
+
+## [54 | 套路篇：应用监控的一般思路](https://time.geekbang.org/column/article/88423)
+
+### RED原则 
+RED方法更偏重于应用
+
+- Rate (R): The number of requests per second.
+- Errors (E): The number of failed requests.
+- Duration (D): The amount of time to process a request.
+
+### 指标监控
+- 请求数、错误率和响应时间
+- 可以使用 Zipkin、Jaeger、Pinpoint 等各类开源工具，来构建全链路跟踪系统。
+
+### 日志监控
+对日志监控来说，最经典的方法，就是使用 ELK 技术栈
+
+## [55 | 套路篇：分析性能问题的一般步骤](https://time.geekbang.org/column/article/88667)
+套路满满见原文
+
+## [56 | 套路篇：优化性能问题的一般方法](https://time.geekbang.org/column/article/89278)
+套路满满见原文
+
+## [57 | 套路篇：Linux 性能工具速查](https://time.geekbang.org/column/article/89306)
+见原文插图
+
+## [加餐（一） | 书单推荐：性能优化和Linux 系统原理](https://time.geekbang.org/column/article/80829)
+- Linux 基础入门书籍：《鸟哥的 Linux 私房菜》
+- 计算机原理书籍：《深入理解计算机系统》
+- Linux 编程书籍：《Linux 程序设计》和《UNIX 环境高级编程》
+- Linux 内核书籍：《深入 Linux 内核架构》
+- 性能优化书籍：《性能之巅：洞悉系统、企业与云计算》
+
+## [加餐（二） | 书单推荐：网络原理和 Linux 内核实现](https://time.geekbang.org/column/article/84619)
+- 计算机网络经典教材《计算机网络（第 5 版）》
+- 网络协议必读书籍《TCP/IP 详解 卷 1：协议》
+- Wireshark 书籍《Wireshark 网络分析就这么简单》和《Wireshark 网络分析的艺术》
+- 网络编程书籍《UNIX 网络编程》
+
+
 
