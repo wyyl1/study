@@ -4,7 +4,7 @@
 
 Dockerfile
 
-```cmd
+```Dockerfile
 FROM openjdk:11-jdk-slim
 
 # JMeter version
@@ -37,7 +37,7 @@ $ docker build -t aoeai/jmeter-5.3-base .
 ## JMeter Client 镜像
 Dockerfile
 
-```cmd
+```Dockerfile
 FROM aoeai/jmeter-5.3-base
 
 EXPOSE 6000
@@ -50,7 +50,7 @@ $ docker build -t aoeai/jmeter-5.3-client .
 ## JMeter Server 镜像
 Dockerfile
 
-```cmd
+```Dockerfile
 FROM aoeai/jmeter-5.3-base
 
 # Ports to be exposed from the container for JMeter Slaves/Server

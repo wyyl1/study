@@ -2,7 +2,7 @@
 
 ## Dockerfile
 
-```vim
+```Dockerfile
 FROM openjdk:11-jdk-slim
 RUN addgroup -S spring && useradd -S spring -G spring
 USER spring:spring
@@ -51,7 +51,7 @@ $ docker ps
 
 --tag, -t: 镜像的名字及标签，通常 name:tag 或者 name 格式；可以在一次构建中为一个镜像设置多个标签。
 
-## 上传镜像值hub仓库
+## 上传镜像到hub仓库
 
 ```cmd
 $ docker push aoeai/spring-boot-docker:0.0.1-test
