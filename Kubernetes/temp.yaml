@@ -1,64 +1,79 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: domain-aoeai-test-app
-  labels:
-    app: aoeai-test-app
-spec:
-  hostname: app-dns
-  type: NodePort
-  selector:
-    app: aoeai-test-app
-  ports:
-  - name: foo
-    port: 80
-    targetPort: 8080
-    # 可选字段
-    # 默认情况下，为了方便起见，Kubernetes 控制平面会从某个范围内分配一个端口号（默认：30000-32767）
-    nodePort: 30007
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: aoeai-test-app
-spec:
-  selector:
-    matchLabels:
-      app: aoeai-test-app
-  replicas: 1
-  template:
-    metadata:
-      labels:
-        app: aoeai-test-app
-    spec:
-      tolerations:
-      - key: "foo"
-        operator: "Equal"
-        value: "bar"
-        effect: "NoSchedule"
-      containers:
-      - name: aoeai-test-app
-        image: registry.cn-shenzhen.aliyuncs.com/aoeai/test:0.0.2
-        ports:
-        - containerPort: 8080
+cat <<EOF | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
+deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_20.04/ /
+EOF
+cat <<EOF | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable:cri-o:1.18.list
+deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/1.18/xUbuntu_20.04/ /
+EOF
 
----
-apiVersion: v1
-kind: Pod
-metadata:
-  name: busybox2
-  labels:
-    name: busybox
-spec:
-  hostname: busybox-2
-  subdomain: default-subdomain
-  containers:
-  - image: registry.cn-shenzhen.aliyuncs.com/aoeai/test:0.0.2
-    name: busybox
-  tolerations:
-    - key: "foo"
-      operator: "Equal"
-      value: "bar"
-      effect: "NoSchedule"
+curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_20.04/Release.key | sudo apt-key add --keyring /etc/apt/trusted.gpg.d/libcontainers.gpg
+curl -L https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable:cri-o:1.18/xUbuntu_20.04/Release.key | sudo apt-key add --keyring /etc/apt/trusted.gpg.d/libcontainers-cri-o.gpg -
 
-      busybox-12.default-subdomain.default.svc.cluster.local
+sudo apt-get update
+sudo apt-get install -y cri-o cri-o-runc
+
+
+kubeadm join 192.168.0.113:6443 --token jom4qk.f6kgkyhq7txfhy1r \
+    --discovery-token-ca-cert-hash sha256:886fa5bdfa31656835bb4aa07f8ab63a531109f466974ee993a2e1f5894fa95d
+
+
+
+rm -rf /etc/sysctl.d/99-kubernetes-cri.conf
+apt-get autoremove --purge containerd.io
+apt-get autoremove --purge cri-o cri-o-runc
+
+rm -rf /etc/apt/trusted.gpg.d/libcontainers.gpg
+rm -rf /etc/apt/trusted.gpg.d/libcontainers-cri-o.gpg
+
+rm -rf /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
+rm -rf /etc/apt/sources.list.d/devel:kubic:libcontainers:stable:cri-o:1.18.list
+
+删除配置文件
+
+rm -rf /etc/kubernetes/manifests/kube-apiserver.yaml
+rm -rf /etc/kubernetes/manifests/kube-controller-manager.yaml
+rm -rf /etc/kubernetes/manifests/kube-scheduler.yaml
+rm -rf /etc/kubernetes/manifests/etcd.yaml
+rm -rf /var/lib/etcd
+
+rm -rf /var/lib/kubelet/kubeadm-flags.env
+
+
+If you are on a systemd-powered system, you can try to troubleshoot the error with the following commands:
+    - 'systemctl status kubelet'
+    - 'journalctl -xeu kubelet'
+
+配置文件
+/var/lib/kubelet/config.yaml
+/etc/kubernetes/kubelet.conf
+
+kubeadm init --image-repository=registry.cn-hangzhou.aliyuncs.com/google_containers --cri-socket /var/run/crio/crio.sock --v=5
+
+systemctl restart kubelet
+
+
+apt-get --purge remove -y docker.io kubeadm
+
+# 清理旧版本的软件缓存
+sudo apt-get autoclean
+
+# 清理所有软件缓存
+sudo apt-get clean
+
+# 删除系统不再使用的孤立软件
+sudo apt-get -y autoremove
+
+完全卸载kubernetes
+kubeadm reset
+sudo apt-get purge -y kubeadm kubectl kubelet kubernetes-cni kube* 
+sudo apt-get autoremove -y
+sudo rm -rf ~/.kube
+
+dpkg -l containerd*
+
+# kubernetes unable to connect to the server dial tcp 6443 i/o timeout
+# 非root用户执行
+minikube stop
+minikube delete
+minikube start
+
+kubectl cluster-info

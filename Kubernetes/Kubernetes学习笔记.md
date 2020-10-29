@@ -11,7 +11,7 @@
 
 ## 安装失败怎么办
 
-### [使用阿里云镜像](https://developer.aliyun.com/mirror/kubernetes)
+### 安装 kubeadm ([使用阿里云镜像](https://developer.aliyun.com/mirror/kubernetes)) 和 Docker
 
 ### [kubeadm 重置](https://k8smeetup.github.io/docs/reference/setup-tools/kubeadm/kubeadm-reset/)
 
@@ -25,11 +25,16 @@ $ kubeadm reset
 $ kubectl delete -f xx.yaml
 ```
 
-## [Kubernetes 文档](https://kubernetes.io/zh/docs/home/) (官方）
+## 安装 Docker、Kubernetes
+
+```cmd
+$ sudo apt-get update
+$ sudo apt-get install -y docker.io kubeadm
+```
+
+## 运行 Kubernetes
 
 - Ubuntu 建议在root用户下安装，避免很多权限问题
-
-### 部署 Kubernetes 的 Master 节点
 
 - k8s.gcr.io 无法访问
  - 使用第三方镜像
@@ -38,6 +43,8 @@ $ kubectl delete -f xx.yaml
 > ，微软云镜像为gcr.azk8s.cn/google_containers
 
 - kudeadm 默认配置文件 $HOME/.kube/config
+
+- kubeadm 初始化
 
 ```cmd
 kubeadm init --image-repository=registry.cn-hangzhou.aliyuncs.com/google_containers
@@ -96,6 +103,7 @@ kubectl get pods -n kube-system
 ```
 
 ### 部署网络插件 Weave
+- **Weave 安装成功后 coredns 才能启动成功**
 - [Integrating Kubernetes via the Addon](https://www.weave.works/docs/net/latest/kubernetes/kube-addon/)
 
 ```cmd
@@ -108,7 +116,19 @@ kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl versio
 kubectl get pods --all-namespaces
 ```
 
-### 通过 Taint/Toleration 调整 Master 执行 Pod 的策略
+### wwww安装 [container-runtimes](https://kubernetes.io/docs/setup/production-environment/container-runtimes/)
+
+### Ceph
+
+```cmd
+$ kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/examples/kubernetes/ceph/common.yaml
+
+$ kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/examples/kubernetes/ceph/operator.yaml
+
+$ kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/examples/kubernetes/ceph/cluster.yaml
+```
+
+### 通过 Taint/Toleration 调整 Master 执行 Pod 的策略（建议用2台机器，省去很多麻烦）
 - 为节点打上“污点”（Taint）的命令是
 
 ```cmd
@@ -137,7 +157,24 @@ $ kubectl taint nodes --all node-role.kubernetes.io/master-
 ```
 
 
-### [安装 Minikube](https://kubernetes.io/zh/docs/tasks/tools/install-minikube/)
+### [安装 Minikube](https://github.com/AliyunContainerService/minikube)
+
+```cmd
+$ curl -Lo minikube https://kubernetes.oss-cn-hangzhou.aliyuncs.com/minikube/releases/v1.13.0/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
+```
+
+[阿里云镜像加速](https://cr.console.aliyun.com/cn-hangzhou/instances/mirrors)
+
+```cmd
+# 启动
+$ minikube start
+
+$ minikube start --cpus=4 --memory=4096mb
+$ minikube start --cpus=4 --memory=6100mb --registry-mirror=https://rmpv334g.mirror.aliyuncs.com
+
+$ minikube stop
+$ minikube delete
+```
 
 #### 确认安装
 - 由于国内无法直接连接 k8s.gcr.io，推荐使用阿里云镜像仓库，在 minikube start 中添加 --image-repository 参数。
@@ -296,6 +333,10 @@ apiServerExtraArgs:
 # 匹配相应版本 kubectl version  
 # client对应kubectl，server对应Master上的k8s版本
 kubernetesVersion: "stable-1.19.1"
+```
+
+```cmd
+$ kubeadm init --config kubeadm.yaml
 ```
 
 - 查看kubeadm版本
@@ -555,6 +596,34 @@ spec:
 $ curl localhost:30007
 ```
 
+### Headless Service
+- Headless Service 不需要分配一个 VIP，而是可以直接以 DNS 记录的方式解析出被代理 Pod 的 IP 地址。
+    - clusterIP: None
+- 它所代理的所有 Pod 的 IP 地址，都会被绑定一个这样格式的 DNS 记录，如下所示：
+
+```cmd
+<pod-name>.<svc-name>.<namespace>.svc.cluster.local
+```
+
+## [PV、PVC、StorageClass，这些到底在说啥](https://time.geekbang.org/column/article/42698)
+
+用户创建的 PVC 要真正被容器使用起来，就必须先和某个符合条件的 PV 进行绑定。这里要检查的条件，包括两部分：
+
+- 第一个条件，当然是 PV 和 PVC 的 spec 字段。比如，PV 的存储（storage）大小，就必须满足 PVC 的要求。
+
+- 而第二个条件，则是 PV 和 PVC 的 **storageClassName 字段必须一样**。
+
+### PersistentVolumeController
+扮演撮合 PV 和 PVC 的“红娘”的角色
+
+### StorageClass
+- Kubernetes 为我们提供了一套可以自动创建 PV 的机制，即：Dynamic Provisioning。
+
+- Dynamic Provisioning 机制工作的核心，在于一个名叫 StorageClass 的 API 对象
+- **StorageClass 对象的作用，其实就是创建 PV 的模板**
+- **StorageClass 并不是专门为了 Dynamic Provisioning 而设计的**
+- 需要类似 ceph 的支持
+
 ## Ingress
 
 - 所谓 Ingress 对象，其实就是 Kubernetes 项目对“反向代理”的一种抽象。
@@ -625,10 +694,35 @@ kubectl get events --sort-by=.metadata.creationTimestamp
 kubectl diff -f ./my-manifest.yaml
 ```
 
+### [为容器设置启动时要执行的命令和参数](https://kubernetes.io/zh/docs/tasks/inject-data-application/define-command-argument-container/)
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: command-demo
+  labels:
+    purpose: demonstrate-command
+spec:
+  containers:
+  - name: command-demo-container
+    image: debian
+    command: ["printenv"]
+    args: ["HOSTNAME", "KUBERNETES_PORT"]
+  restartPolicy: OnFailure
+```
+
+```yaml
+command: ["/bin/sh"]
+args: ["-c", "while true; do echo hello; sleep 10;done"]
+```
+
 ## 问题
 
 - pod 如何访问 Service
  - flannel
+- [Kubernetes之路 3 - 解决服务依赖](https://developer.aliyun.com/article/573791)
+- [Init 容器](https://kubernetes.io/zh/docs/concepts/workloads/pods/init-containers/) (官方文档)
 
 
 ```cmd
@@ -637,5 +731,11 @@ $ kubectl get svc
 $ kubectl describe svc
 
 $ kubectl describe service domain-aoeai-test-app
+```
+
+[获取正在运行容器的 Shell](https://kubernetes.io/zh/docs/tasks/debug-application-cluster/get-shell-running-container/)
+
+```cmd
+$ kubectl exec -it shell-demo -- /bin/bash
 ```
 
