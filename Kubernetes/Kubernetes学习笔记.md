@@ -717,6 +717,10 @@ command: ["/bin/sh"]
 args: ["-c", "while true; do echo hello; sleep 10;done"]
 ```
 
+## 助手
+
+- [InfoQ 一套适用于MacOS的Kubernetes开发工作流](https://www.infoq.cn/article/It1BQEYocrL9iGvoS-Xy)
+
 ## 问题
 
 - pod 如何访问 Service

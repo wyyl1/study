@@ -1,16 +1,79 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+    name: influxdb
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+    labels:
+        app: influxdb
+    name: influxdb
+    namespace: influxdb
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            app: influxdb
+    serviceName: influxdb
+    template:
+        metadata:
+            labels:
+                app: influxdb
+        spec:
+            containers:
+              - image: influxdb:1.8.3-alpine
+                name: influxdb
+                ports:
+                  - containerPort: 8086
+                    name: influxdb
+                volumeMounts:
+                  - mountPath: /root/.influxdbv2
+                    name: data
+            nodeSelector:
+                 disktype: work2
+    volumeClaimTemplates:
+      - metadata:
+            name: data
+            namespace: influxdb
+        spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+                requests:
+                    storage: 5G
+---
 apiVersion: v1
 kind: Service
 metadata:
-  name: prometheus
-  labels:
-    app: prometheus
+    name: influxdb
+    namespace: influxdb
 spec:
-  type: NodePort
-  ports:
-  - port: 9090
-    targetPort: 9090
-    protocol: TCP
-    targetPort: http
-    nodePort: 30201
-  selector:
-    app: prometheus
+    ports:
+      - name: influxdb
+        port: 8086
+        targetPort: 8086
+    selector:
+        app: influxdb
+    type: ClusterIP
+---
+apiVersion: ceph.rook.io/v1beta1
+kind: Pool
+metadata:
+  name: influxdbpool
+  namespace: influxdb
+spec:
+  replicated:
+    size: 1
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: influxdb-sc
+  namespace: influxdb
+provisioner: ceph.rook.io/block
+parameters:
+  pool: replicapool
+  #The value of "clusterNamespace" MUST be the same as the one in which your rook cluster exist
+  clusterNamespace: influxdb

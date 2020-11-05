@@ -1,90 +1,85 @@
+# K8S 发布应用程序
 
-# Kubernetes 实战
+## [将 Pod 分配给节点](https://kubernetes.io/zh/docs/tasks/configure-pod-container/assign-pods-nodes/)
 
-## 安装 Minikube
-
-- [阿里云 Minikube](https://github.com/AliyunContainerService/minikube)
-- [Hello Minikube](https://kubernetes.io/docs/tutorials/hello-minikube/)
-
-```cmd
-$ curl -Lo minikube https://kubernetes.oss-cn-hangzhou.aliyuncs.com/minikube/releases/v1.13.0/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
-```
-
-[阿里云镜像加速](https://cr.console.aliyun.com/cn-hangzhou/instances/mirrors)
+### 给节点添加标签
+选择其中一个节点，为它添加标签
 
 ```cmd
-# 启动
-$ minikube start
-
-$ minikube start --cpus=4 --memory=4096mb
-$ minikube start --cpus=4 --memory=6100mb --registry-mirror=https://rmpv334g.mirror.aliyuncs.com
-
-$ minikube stop
-$ minikube delete
+$ kubectl label nodes <your-node-name> disktype=ssd
 ```
 
-## App
+验证你选择的节点是否有 disktype=ssd 标签
 
-### aoeai-3w-tps-test.yaml
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: aoeai-3w-tps-test
-spec:
-  selector:
-    matchLabels:
-      app: aoeai-3w-tps-test
-  replicas: 1
-  template:
-    metadata:
-      labels:
-        app: aoeai-3w-tps-test
-    spec:
-      tolerations:
-      - key: "foo"
-        operator: "Equal"
-        value: "bar"
-        effect: "NoSchedule"
-      containers:
-      - name: aoeai-3w-tps-test
-        image: registry.cn-shenzhen.aliyuncs.com/aoeai/test:0.0.2
-        ports:
-        - containerPort: 8080
+```cmd
+$ kubectl get nodes --show-labels
 ```
 
-### service.yaml
+### 创建一个调度到你选择的节点的 pod
+
+此 Pod 配置文件描述了一个拥有节点选择器 disktype: ssd 的 Pod。这表明该 Pod 将被调度到 有 disktype=ssd 标签的节点。
 
 ```yaml
 apiVersion: v1
-kind: Service
+kind: Pod
 metadata:
-  name: aoeai-3w-tps-test-nodeport
+  name: nginx
   labels:
-    app: aoeai-3w-tps-test
+    env: test
 spec:
-  # 暴露到本机 IP
-  type: NodePort
-  selector:
-    app: aoeai-3w-tps-test
-  ports:
-  - name: foo
-    port: 80
-    targetPort: 8080
-    # 暴露到本机 IP
-    # 可选字段
-    # 默认情况下，为了方便起见，Kubernetes 控制平面会从某个范围内分配一个端口号（默认：30000-32767）
-    nodePort: 30100
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: IfNotPresent
+  nodeSelector:
+    disktype: ssd
+```
+
+验证 pod 是不是运行在你选择的节点
+
+```cmd
+$ kubectl get pods --output=wide
+```
+
+## 安装 Ceph 存储插件
+
+```cmd
+$ kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/examples/kubernetes/ceph/common.yaml
+
+$ kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/examples/kubernetes/ceph/operator.yaml
+
+$ kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/examples/kubernetes/ceph/cluster.yaml
 ```
 
 ```cmd
-$ kubectl apply -f aoeai-3w-tps-test.yaml -f service.yaml
-
-$ minikube service aoeai-3w-tps-test-nodeport
+$ kubectl get pods -n rook-ceph
 ```
 
-### InfluxDB
+## 创建 StorageClass
+sc.yaml
+
+```yaml
+apiVersion: ceph.rook.io/v1beta1
+kind: Pool
+metadata:
+  name: replicapool
+  namespace: rook-ceph
+spec:
+  replicated:
+    size: 3
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: block-service
+provisioner: ceph.rook.io/block
+parameters:
+  pool: replicapool
+  #The value of "clusterNamespace" MUST be the same as the one in which your rook cluster exist
+  clusterNamespace: rook-ceph
+```
+
+## InfluxDB
 - 使用 v1.8 （2.0 太超前，目前大部分解决方案都是 1.X 的）
 - [v1.8 文档](https://docs.influxdata.com/influxdb/v1.8/)
 - 参考 v2.0 安装 [Install InfluxDB in a Kubernetes cluster](https://docs.influxdata.com/influxdb/v2.0/get-started/#install-influxdb-in-a-kubernetes-cluster)
@@ -156,7 +151,7 @@ spec:
 $ kubectl get pods -n influxdb
 ```
 
-#### [Get started with InfluxDB](https://docs.influxdata.com/influxdb/v2.0/get-started/#start-with-influxdb-oss) 选 Kubernetes 的方法
+### [Get started with InfluxDB](https://docs.influxdata.com/influxdb/v2.0/get-started/#start-with-influxdb-oss) 选 Kubernetes 的方法
 
 ```cmd
 # 进入
@@ -175,15 +170,15 @@ $ minikube service influxdb -n influxdb
 $ kubectl port-forward svc/influxdb -n influxdb 8086:8086 &
 ```
 
-#### K8S 中服务地址
+### K8S 中服务地址
 
 http://influxdb.influxdb:8086
 
-### Grafana
+## Grafana
 
 - [Deploying Grafana to Kubernetes](https://www.metricfire.com/blog/deploying-grafana-to-kubernetes/)
 
-#### grafana.yaml
+### grafana.yaml
 
 ```yaml
 apiVersion: apps/v1
@@ -221,7 +216,7 @@ spec:
         fsGroup: 472
 ```
 
-#### pvc.yaml
+### pvc.yaml
 
 ```yaml
 apiVersion: v1
@@ -237,7 +232,7 @@ spec:
       storage: 1Gi
 ```
 
-#### service.yaml
+### service.yaml
 
 ```yaml
 apiVersion: v1
@@ -269,18 +264,18 @@ $ minikube service grafana
 $ kubectl port-forward svc/grafana 3000:3000 &
 ```
 
-#### 插件
+### 插件
 
 - [Apache JMeter Dashboard using Core InfluxdbBackendListenerClient](https://grafana.com/grafana/dashboards/5496)
 - JMeter dashboard，我们常用的 dashboard 是 Grafana 官方 ID 为 5496 的模板。数据来源：JMeter 中 Backend Listener
 
-### [Prometheus.io](https://prometheus.io/)
+## [Prometheus.io](https://prometheus.io/)
 
 - [官方文档](https://prometheus.io/docs/introduction/overview/)
 - [官方安装说明](https://prometheus.io/docs/prometheus/latest/installation/)
 - [Docker 镜像](https://hub.docker.com/r/prom/prometheus/tags)
 
-#### prometheus.yaml 最简单版本
+### prometheus.yaml 最简单版本
 
 ```yaml
 apiVersion: apps/v1
@@ -318,9 +313,9 @@ spec:
         fsGroup: 472
 ```
 
-#### prometheus.yaml node_exporter 版本
+### prometheus.yaml node_exporter 版本
 
-##### 1. 利用 prometheus.yml 生成 ConfigMap
+#### 1. 利用 prometheus.yml 生成 ConfigMap
 
 prometheus.yml
 
@@ -414,7 +409,7 @@ spec:
         fsGroup: 472
 ```
 
-#### pvc.yaml
+### pvc.yaml
 
 ```yaml
 apiVersion: v1
@@ -430,7 +425,7 @@ spec:
       storage: 1Gi
 ```
 
-#### service.yaml
+### service.yaml
 
 ```yaml
 apiVersion: v1
@@ -463,23 +458,8 @@ $ kubectl port-forward svc/prometheus 9090:9090 &
 - [参考使用 ConfigMap 动态加载配置文件](https://www.qikqiak.com/k8strain/monitor/prometheus/)
 - [k8s 监控（一）安装 Prometheus](https://juejin.im/post/6844903908251451406)
 
-### Telegraf
+## Telegraf
 - [Telegraf 1.16 documentation](https://docs.influxdata.com/telegraf/v1.16/)
 - [Docker 镜像](https://hub.docker.com/_/telegraf/?tab=description)
 - [源码](https://github.com/influxdata/telegraf)
-
-## Ubuntu 20.04 
-
-### [node_exporter](https://github.com/prometheus/node_exporter)
-- [node_exporter-1.0.1.linux-amd64.tar.gz](https://github.com/prometheus/node_exporter/releases/download/v1.0.1/node_exporter-1.0.1.linux-amd64.tar.gz)
-
-```cmd
-$ wget https://github.com/prometheus/node_exporter/releases/download/v1.0.1/node_exporter-1.0.1.linux-amd64.tar.gz
-
-$ tar -xvzf node_exporter-1.0.1.linux-amd64.tar.gz
-
-$ ./node_exporter --web.listen-address=:9200 &
-```
-
-
 

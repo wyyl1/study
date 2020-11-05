@@ -43,6 +43,8 @@ USER java-app
 
 ```cmd
 $ docker build -t aoeai/spring-boot-docker:0.0.1-test .
+
+# docker run -p 本地主机端口:容器端口 aoeai/spring-boot-docker:0.0.1-test
 $ docker run -p 8080:8080 aoeai/spring-boot-docker:0.0.1-test
 
 # 查看正在运行的容器
