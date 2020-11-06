@@ -1,6 +1,11 @@
 # K8S 自动化部署应用
 
-## 上传 Docker 镜像至仓库
+## 流程简介
+
+1. 提交代码到 Git 仓库
+2. Jenkins 从仓库拉取代码
+3. 使用 插件 CloudBees Docker Build and Publish 将项目制作成 Docker 镜像，并上传至 Docker 仓库
+4. 上传 K8S 发布文件到 K8S 主机，执行 kubectl apply 命令发布到 K8S 集群
 
 ### Jenkins 插件 
 - 下载速度太慢请切换到清华大学下载源：https://mirror.tuna.tsinghua.edu.cn/jenkins/updates/update-center.json
