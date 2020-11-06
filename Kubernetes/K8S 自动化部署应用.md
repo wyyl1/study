@@ -29,4 +29,33 @@ $ chown -R jenkins /var/run/docker.sock
 
 [CloudBees Docker Build and Publish](https://plugins.jenkins.io/docker-build-publish/)
 
+### [从私有仓库拉取镜像](https://kubernetes.io/zh/docs/tasks/configure-pod-container/pull-image-private-registry/)
+
+- [Secret](https://kubernetes.io/zh/docs/concepts/configuration/secret/) 配置
+- [kubectl create secret docker-registry](https://jamesdefabia.github.io/docs/user-guide/kubectl/kubectl_create_secret_docker-registry/)
+
+创建一个名字为 aliyun-secret 的 Secret
+
+```cmd
+kubectl create secret docker-registry aliyun-secret \
+  --docker-server=仓库地址 \
+  --docker-username=用户名 \
+  --docker-password=密码 \
+  --docker-email=邮箱 \
+  --namespace=命名空间
+```
+
+查看 Secret 的描述
+
+```cmd
+$ kubectl delete secret aliyun-secret
+
+$ kubectl get secret aliyun-secret --output=yaml
+
+$ kubectl describe secrets/aliyun-secret
+
+$ kubectl get secret aliyun-secret --output="jsonpath={.data.\.dockerconfigjson}" | base64 --decode
+```
+
+### K8S [配置最佳实践](https://kubernetes.io/zh/docs/concepts/configuration/overview/)（官方）
 
