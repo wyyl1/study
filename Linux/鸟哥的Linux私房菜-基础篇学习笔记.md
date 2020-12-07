@@ -294,6 +294,62 @@ $ dirname /home/aoe/k8s/test/
 - q：立刻离开
 - b 或 ctrl + b：往回翻页，只对文件有用，对管线无用
 
-#### less
+### 6.4.1 文件预设权限 umask
+umask 指定**目前用户在建立文件或目录时候的权限默认值**
+
+```cmd
+# 数字是拿掉的权限
+$ umask
+0002
+
+# -S (Symbolic)
+$ umask -S
+u=rwx,g=rwx,o=rx
+```
+
+### 6.4.2 文件隐藏属性
+- chattr
+    - 只能在 Ext2/Ext3/Ext4 的 Linux 传统文件系统上面完整生效
+    - 其他的系统文件不保证完整支持，例如 xfs 仅支持部分参数
+ 
+ ```cmd
+ # 执行后 root 用户也删除不了这个文件
+ $ chattr + i 文件名
+ 
+ # 取消 i 属性
+ $ chattr -i 文件名
+ ```
+
+### 6.4.4 观察文件类型 file
+
+```cmd
+$ file ~/.bashrc
+```
+
+### 6.5.1 脚本文件名的搜寻
+
+- which 寻找 【执行裆】
+
+```cmd
+# which -a command
+# -a 将所有由 PATH 目录中可以找到的指令均列出，而不止第一个被找到的指令名称
+$ which ifconfig
+```
+
+### 6.5.2 文件档名的搜寻
+- find
+    - 不常用
+    - 速度慢
+    - 扫描硬盘
+- whereis
+    - 只找系统中某些特定目录下的文件（-l 列出查询的几个主要目录）
+- locate
+    - 利用数据库搜索文件
+    - 在 /var/lib/mlocate/ 里面的数据中搜索
+    - 数据库默认每天更新一次，实时性较差
+    - updatedb 命令可以更新数据库
+
+## 第七章 Linux 磁盘与文件系统管理
+### 7.1.3
 
 

@@ -1,5 +1,8 @@
 # K8S 集群部署
 
+## 前置条件
+- 禁用虚拟内存
+
 ## 1. [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
 
 ### 1.1 文档中的最后一步，选择版本
@@ -71,9 +74,27 @@ $ apt-mark hold kubelet kubeadm kubectl
 ```cmd
 $ kubeadm init --image-repository=registry.cn-hangzhou.aliyuncs.com/google_containers
 
+初始化……
+
+Your Kubernetes control-plane has initialized successfully!
+
+To start using your cluster, you need to run the following as a regular user:
+
+  mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+You should now deploy a pod network to the cluster.
+Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+  https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+Then you can join any number of worker nodes by running the following on each as root:
+
 kubeadm join 172.16.141.208:6443 --token oqodbp.fqgnp8yqm0guil2j \
     --discovery-token-ca-cert-hash sha256:d3788f5268fb8483cbb71babd252b40a14fb6c3c5b3fd9bfb660d20dfd9871de
 ```
+
+- 成功后根据提示（To start using your cluster, you need to run the following as a regular user:）执行初始化命令
 
 #### 部署网络插件 Weave
 
