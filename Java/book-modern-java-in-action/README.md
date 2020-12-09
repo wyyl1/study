@@ -1,3 +1,53 @@
+# Java实战（第2版）学习笔记
+- 书名：Java实战（第2版）
+- 书号：978-7-115-52148-4
+- 原书名：Modern Java in Action: Lambda, streams, functional and reactive programming
+- 原书号：9781617293566
+- 源码下载地址：https://www.ituring.com.cn/book/2659 "随书下载"处下载
+- 作者：拉乌尔·加布里埃尔·乌尔玛,马里奥·富斯科,艾伦·米克罗夫特. 
+
+## 方法引用 ::
+
+- 创建方法引用（File::isHidden）
+```java
+File[] hiddenFiles = new File(".").listFiles(File::isHidden);
+```
+
+## Predicate
+- 谓词：在数学上常常用来代表类似于函数的东西，它接受一个参数值，并返回 **true** 或 **false**
+- 优点：代码更干净、更清晰
+- 复杂的条件可以使用策略模式
+- 更好的实现 DRY(Don't Repeat Yourself)
+
+## 行为参数化
+- 通俗解释：让方法接受多种行为（策略）作为参数，并在内部使用，来完成不同的行为
+- 优点：让代码更能适应需求的变化
+
+## Lambda
+- 可以理解为一种简洁的可传递匿名函数
+    - 没有名称
+    - 有参数列表、函数主体、返回类型
+    - 允许有一个可以抛出的异常列表
+    - Lambda 表达式可以作为参数传递给方法或存储在变量中
+    - Lambda 没有 return 语句，因为已经隐含了 return
+    - 可以返回 void ``` () -> {} ```
+    - 起源于学术界开发出的一套用来描述计算的λ演算法
+              
+### 表 3-1 Lambda 示例
+
+| 使用案例 | Lambda 示例 |
+| --- | --- |
+| 布尔表达式 | (List<String> list) -> list.isEmpty()|
+| 创建对象 | () -> new Apple(10) |
+| 消费一个对象 | (Apple a) -> { System.out.println(a.getWeight()); } |
+| 从一个对象中选择/抽取 | (String s) -> s.length() |
+| 组合两个值 | (int a, int b) -> a * b |
+| 比较两个对象 | (Apple a1, Apple a2) -> a1.getWeight().compareTo(a2.getWeight()) |
+| 返回 String 作为表达式 | () -> "Hi" |
+| 返回 String（利用显示返回语句） | () -> {return "Hi";} |
+                         
+
+---
 Java8InAction
 ===============
 
@@ -58,9 +108,4 @@ You can also import the project in your favorite IDE:
     * In Eclipse use "File->Import->Existing Maven Projects" (also modify "Reduntant super interfaces" to report as Warnings instead of Errors
     * In Netbeans use "File->Open Project" menu
     
-# 笔记
-- 书名：Java实战（第2版）
-- 书号：978-7-115-52148-4
-- 原书名：Modern Java in Action: Lambda, streams, functional and reactive programming
-- 原书号：9781617293566
-- 源码下载地址：https://www.ituring.com.cn/book/2659 "随书下载"处下载
+
