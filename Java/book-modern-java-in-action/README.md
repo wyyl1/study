@@ -45,7 +45,51 @@ File[] hiddenFiles = new File(".").listFiles(File::isHidden);
 | 比较两个对象 | (Apple a1, Apple a2) -> a1.getWeight().compareTo(a2.getWeight()) |
 | 返回 String 作为表达式 | () -> "Hi" |
 | 返回 String（利用显示返回语句） | () -> {return "Hi";} |
+
+## 函数式接口
+- 只定义一个抽象方法的接口
                          
+### @FunctionalInterface
+
+### 3.4.1 Predicate
+- java.util.function.Predicate
+- boolean test(T t);
+    - t : the function argument
+    - r : the function result
+
+### 3.4.2 Consumer
+- 消费者
+- void accept(T t);
+
+### 3.4.3 Function
+- R apply(T t);
+- 接受泛型 T 的参数，返回泛型 R 的对象
+
+### 基本类型函数接口
+- 装箱后的值本质上就是把基本类型包裹起来，并保存在堆里
+- 因此，装箱后的值需要更多的内存
+- 并且需要额外的内存搜索来获取被包裹的基本值
+
+使用类似下列函数式接口可以避免自动装箱操作
+
+- IntPredicate
+- LongConsumer
+- DoubleFunction
+
+更多接口详见：表 3-2 Java 8 中的常用函数式接口
+表 3-3 Lambda 及函数式接口的例子
+
+| 使用案例 | Lambda 的例子 | 对应的函数式接口 |
+| --- | --- | --- |
+| 布尔表达式 | (List<String> list) -> list.isEmpty() | Predicate<List<String>> |
+| 创建对象 | () -> new Apple(10) | Supplier<Apple> |
+| 消费一个对象 | (Apple a) -> System.out.println(a.getWeight) | Consumer<Apple> |
+| 从一个对象中提取 | (String s) -> s.length() | Function<String, Integer> <br> ToIntFunction<String> |
+| 合并两个值 | (int a, int b) -> a * b | IntBinaryOperator |
+| 比较两个对象 | (Apple a1, Apple a2) -> a1.getWeight().compareTo(a2.getWeight()) | Comparator<Apple> <br> BiFunction<Apple, Apple, Integer> <br> ToIntBiFunction<Apple, Apple, Apple> |
+
+
+
 
 ---
 Java8InAction
