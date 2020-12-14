@@ -88,8 +88,23 @@ File[] hiddenFiles = new File(".").listFiles(File::isHidden);
 | 合并两个值 | (int a, int b) -> a * b | IntBinaryOperator |
 | 比较两个对象 | (Apple a1, Apple a2) -> a1.getWeight().compareTo(a2.getWeight()) | Comparator<Apple> <br> BiFunction<Apple, Apple, Integer> <br> ToIntBiFunction<Apple, Apple, Apple> |
 
+### 3.6 方法引用
 
+图 3-5 改编
 
+| Lambda | 方法引用 | 备注 |
+| --- | --- | --- |
+| (args) -> ClassName.staticMethod(args) | ClassName::staticMethod |  |
+| (arg0, rest) -> arg0.instanceMethod(rest) | ClassName::instanceMethod | arg0 是 ClassName 类型的 |
+| (args) -> expr.instanceMethod(args) | expr::instanceMethod |  |
+
+测验3.6：方法引用
+
+| Lambda | 方法引用 |
+| --- | --- |
+| ToIntFunction<String> stringToInt = (String s) -> Integer.parseInt(s); | ToIntFunction<String> stringToInt = Integer:parseInt; |
+| BiPredicate<List<String>, String> contains = (list, element) -> list.contains(element); | BiPredicate<List<String>, String> contains = List::contains; |
+| Predicate<String> startsWithNumber = (String string) -> this.startWithNumber(string); | Predicate<String> startsWithNumber = this::startsWithNumber |
 
 ---
 Java8InAction
