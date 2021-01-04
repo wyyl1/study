@@ -17,6 +17,12 @@ public class Mapping{
         .collect(toList());
     System.out.println(dishNames);
 
+    List<Integer> dishNameLengths = menu.stream()
+            .map(Dish::getName)
+            .map(String::length)
+            .collect(toList());
+    System.out.println(dishNameLengths);
+
     // map
     List<String> words = Arrays.asList("Hello", "World");
     List<Integer> wordLengths = words.stream()

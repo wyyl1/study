@@ -37,22 +37,35 @@ public class BuildingStreams {
         .map(t -> t[0])
         .forEach(System.out::println);
 
+    // Java 9 对 iterate 方法进行了增强，支持谓词操作
+    // 从0开始生成一个数字序列，当数字大于100时停止
+    Stream.iterate(0, n -> n < 100, n -> n +4)
+    .forEach(System.out::println);
+
+    Stream.iterate(0, n -> n + 4)
+            .takeWhile(n -> n < 100)
+            .forEach(System.out::println);
+
     // random stream of doubles with Stream.generate
     Stream.generate(Math::random)
         .limit(10)
         .forEach(System.out::println);
 
     // stream of 1s with Stream.generate
+      System.out.println("stream of 1s with Stream.generate");
     IntStream.generate(() -> 1)
         .limit(5)
         .forEach(System.out::println);
+      System.out.println("stream of 1s with Stream.generate");
 
+      System.out.println("22222222222222222222222");
     IntStream.generate(new IntSupplier() {
       @Override
       public int getAsInt() {
         return 2;
       }
     }).limit(5).forEach(System.out::println);
+      System.out.println("22222222222222222222222");
 
     IntSupplier fib = new IntSupplier() {
 
@@ -72,7 +85,7 @@ public class BuildingStreams {
         .limit(10)
         .forEach(System.out::println);
 
-    long uniqueWords = Files.lines(Paths.get("lambdasinaction/chap5/data.txt"), Charset.defaultCharset())
+    long uniqueWords = Files.lines(Paths.get("/Users/aoe/github/study/Java/book-modern-java-in-action/src/main/resources/modernjavainaction/chap05/data.txt"), Charset.defaultCharset())
         .flatMap(line -> Arrays.stream(line.split(" ")))
         .distinct()
         .count();
