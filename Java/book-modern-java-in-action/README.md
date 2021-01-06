@@ -738,7 +738,7 @@ list.replaceAll(i -> i > 10 ? i / 10 : i);
     - 解决要查找的键在 Map 中不存在
     - 第一个参数作为键，第二个参数为默认值
 - 计算模式
-    - [computeIfAbsent](#computeIfAbsent)：如果指定的键没有对应的值（键不存在或该键对应的值是空），添加新的值（与原来的值进行合并操作）
+    - [computeIfAbsent](#83-computeIfAbsent)：如果指定的键没有对应的值（键不存在或该键对应的值是空），添加新的值（与原来的值进行合并操作）
     - computeIfPresent
     - compute
     
@@ -753,8 +753,7 @@ Map.Entry.comparingByKey
                 .forEachOrdered(System.out::println);
 ```
 
-<span id="computeIfAbsent">
-computeIfAbsent
+#### computeIfAbsent
 ```java
         Map<String, List<String>> friendsToMovies = new HashMap<>();
 
@@ -773,7 +772,6 @@ computeIfAbsent
         System.out.println(friendsToMovies);
         // {小刚=[星球大战, 星际争霸, 星际争霸]}
 ```
-</span>
 
 
 
