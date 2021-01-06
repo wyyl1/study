@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/zsh
 
 #Java executable for standard Linux environment
 export JAVA_EXE=java

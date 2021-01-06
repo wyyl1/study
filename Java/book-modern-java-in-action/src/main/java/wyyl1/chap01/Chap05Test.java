@@ -68,5 +68,7 @@ public class Chap05Test {
         System.out.println((2 % 1));
         System.out.println((3 % 1));
         System.out.println((3.1 % 1));
+
+        System.out.println("线程数量 " + Runtime.getRuntime().availableProcessors());
     }
 }

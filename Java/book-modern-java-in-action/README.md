@@ -472,6 +472,308 @@ Collectors.reducing 工厂方法是所有这些特殊情况的一般化
     );
   }
 ```
+#### 6.3.1 操作分组的元素
+groupingBy + filtering 操作有点复杂，需要时查阅原文
+- 使用 filter，会少一个分类 FISH
+- 使用 groupingBy + filtering，FISH 分类会被保存，即使是空数据
+
+modernjavainaction.chap06.Grouping.java
+```java
+  private static Map<Dish.Type, List<Dish>> groupCaloricDishesByType() {
+//    return menu.stream()
+//            .filter(dish -> dish.getCalories() > 500)
+//            .collect(groupingBy(Dish::getType));
+      // {OTHER=[french fries, pizza], MEAT=[pork, beef]}
+    return menu.stream().collect(
+        groupingBy(Dish::getType,
+            filtering(dish -> dish.getCalories() > 500, toList())));
+    // {OTHER=[french fries, pizza], MEAT=[pork, beef], FISH=[]}
+  }
+```
+#### 6.3.2 多级分组
+groupingBy 嵌套 groupingBy
+```java
+  private static Map<Dish.Type, Map<CaloricLevel, List<Dish>>> groupDishedByTypeAndCaloricLevel() {
+    return menu.stream().collect(
+        groupingBy(Dish::getType,
+            groupingBy((Dish dish) -> {
+              if (dish.getCalories() <= 400) {
+                return CaloricLevel.DIET;
+              }
+              else if (dish.getCalories() <= 700) {
+                return CaloricLevel.NORMAL;
+              }
+              else {
+                return CaloricLevel.FAT;
+              }
+            })
+        )
+    );
+  }
+```
+
+#### 6.3.3 按子组收集数据
+传递给第一个 gropingBy 的第二个收集器可以是任何类型
+
+统计每个类型的数量
+```java
+  private static Map<Dish.Type, Long> countDishesInGroups() {
+    return menu.stream().collect(groupingBy(Dish::getType, counting()));
+  }
+  // {OTHER=4, MEAT=3, FISH=2}
+```
+Collectors.collectingAndThen 😅详情见原文
+### 6.4 分区
+分区是分组的特殊情况，Collectors.partitioningBy
+- 分区函数返回一个布尔值
+
+按荤素分
+```java
+  private static Map<Boolean, List<Dish>> partitionByVegeterian() {
+    return menu.stream().collect(partitioningBy(Dish::isVegetarian));
+  }
+  // {false=[pork, beef, chicken, prawns, salmon], true=[french fries, rice, season fruit, pizza]}
+```
+#### 6.4.1 分区的优势
+- 保留了分区函数返回 true 或 false 的两套流元素列表
+
+按荤素、食材类型分类
+```java
+  private static Map<Boolean, Map<Dish.Type, List<Dish>>> vegetarianDishesByType() {
+    return menu.stream().collect(partitioningBy(Dish::isVegetarian, groupingBy(Dish::getType)));
+  }
+  // {false={MEAT=[pork, beef, chicken], FISH=[prawns, salmon]}, true={OTHER=[french fries, rice, season fruit, pizza]}}
+```
+
+查找荤素中热量最高的食物
+```java
+  private static Object mostCaloricPartitionedByVegetarian() {
+    return menu.stream().collect(
+        partitioningBy(Dish::isVegetarian,
+            collectingAndThen(
+                maxBy(comparingInt(Dish::getCalories)),
+                Optional::get)));
+  }
+  // {false=pork, true=pizza}
+```
+### 6.5 收集器接口
+```java
+public interface Collector<T, A, R> {
+    Supplier<A> supplier();
+    BiConsumer<A, T> accumulator();
+    BinaryOperator<A> combiner();
+    Function<A, R> finisher();
+    Set<Characteristics> characteristics();
+}
+```
+- T：流中要收集的项目的泛型
+- A：累加器的类型，累加器是在收集过程中用于累积部分结果的对象
+- R：收集操作得到的对象（通常但并不一定是集合）的类型
+
+#### 6.5.1 理解 Collector 接口声明的方法 😅详见原文
+- 前四个方法都返回一个会被 collect 方法调用的函数
+- 第五个方法 characteristics 则提供了一系列特征，也就是一个提示列表，告诉 collect 方法在执行归约操作的时候可以应用哪些优化（比如并行化）
+
+##### 01 建立新的结果容器： supplier 方法
+##### 02 将元素添加到结果容器： accumulator 方法
+##### 05 characteristics 方法
+- UNORDERED：归约结果不受流中项目的遍历和累积顺序的影响
+- CONCURRENT：
+    - accumulator 函数可以从多个线程同时调用，且该收集器可以并行归约流
+    - 如果收集器没有标为 UNORDERED，那它仅在用于无序数据源时才可以并行归约
+- IDENTITY_FINISH：
+    - 表明完成器方法返回的函数是一个恒等函数，可以跳过
+    - 这种情况下，累加器对象将会直接用作归约过程的最终结果
+    - 这也意味着，将累加器 A 不加检查地转换为结果 R 是安全的   
+#### 6.6 开发你自己的收集器以获得更好的性能 😅太高级了，看书吧
+
+## 第 7 章 并行数据处理与性能
+### 7.1 并行流
+**并行流**就是把内容拆分成多个数据块，用不同线程分别处理每个数据块的流
+#### 7.1.1 将顺序流转换为并行流
+对顺序流调用 parallel 方法
+```java
+  public static long parallelSum(long n) {
+    return Stream.iterate(1L, i -> i + 1).limit(n).parallel().reduce(Long::sum).get();
+  }
+```
+配置并行流使用的线程池
+- 并行流内部使用了默认的 ForkJoinPool
+- 默认线程数量就是处理器数量
+- 这个值由 Runtime.getRuntime().availableProcessors() 得到的
+- 可以通过系统属性 System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", "12");
+    - Java 11 这个方法已经失效
+    - 没有充足的理由，强烈建议不要修改
+#### 7.1.2 测量流性能
+JMH （Java 微基准套件 Java microbenchmark harness）
+
+Stream.iterate 本质上是顺序的，使用它的并行流，性能提升不明显
+```java
+  public long sequentialSum() {
+    return Stream.iterate(1L, i -> i + 1).limit(N).reduce(0L, Long::sum);
+  }
+```
+选择适当的数据结构往往比并行化算法更重要
+```java
+  public long parallelRangedSum() {
+    return LongStream.rangeClosed(1, N).parallel().reduce(0L, Long::sum);
+  }
+```
+并行化的代价
+- 并行化过程本身需要对流做递归划分，把每个子流的规约操作分配到不同的线程，然后把这些操作的结果合并成一个值
+- 在多核之间移动数据的代价
+    - 要保证：在核中并行执行工作的时间 > 在核之间传输数据的时长
+#### 7.1.3 正确使用并行流
+- 产生错误的首要原因：使用的算法改变了某些共享状态
+    - 要避免共享可变状态，确保并行 Stream 得到正确的结果
+#### 7.1.4 高效使用并行流
+- 通过测量，判断是否得到性能提升
+- 留意装箱，原始类型流：IntStream、LongStream、DoubleStream
+- 有些操作本身在并行流上的性能就比顺序流差
+    - limit、findFirst 等医疗元素顺序的操作
+    - findAny 不需要按顺序操作，性能优于 findFirst
+    - 调用 unordered 方法把有序流变成无序流
+- 考虑流的操作流水线的总计算成本
+- 对于较小的数据量，选择并行几乎是一个糟糕的决定
+- 要考虑流背后的数据结构是否易于分解
+    - ArrayList 的拆分效率比 LinkedList 高的多，因为前者不用遍历就可以平均拆分，后者则必须遍历
+    - 用 range 工厂方法创建的原始类型流也可以快速分解
+- 流自身的特点以及流水线中的中间操作修改流的方式，都可能会改变分解过程的性能
+- 还要考虑终端操作中合并步骤的代价的大小
+### 7.2 分支/合并框架
+- 以递归方式将可以并行的任务拆分成更小的任务
+- 然后将美国子任务的结果合并起来生成整体结果
+- 它是 ExecutorService 接口的一个实现，把子任务分配给线程池（ForkJoinPool）中的工作线程
+#### 7.2.1 使用 RecursiveTask
+#### 7.2.2 使用分支/合并框架的最佳做法
+- 对一个任务调用 join 方法会阻塞调用方，直到该任务返回结果
+    - 有必要在两个子任务的计算都开始之后再调用
+    - 否则，你的代码会比原始的顺序算法更慢且更复杂，因为每个子任务都必须等待另一个子任务完成后才能启动
+- 不应该在 RecursiveTask 内部使用 ForkJoinPool 的 invoke 方法
+- 对子任务调用 fork 方法可以把它排进 ForkJoinPool
+    - 同时对左右两边的子任务调用它似乎很自然，但这样的效率比直接对期中一个调用 compute 低
+    - 这样做可以为期中一个子任务重用同一线程，从而避免在线程池中多分配一个任务造成的开销
+- Debug 时会很郁闷
+- 和并行流一样，不一定比顺序执行速度快
+    - 一个惯用的方法：把输入/输出放在一个子任务，计算放在另一个，这样计算就可以和输入/输出同时进行
+#### 7.2.3 工作窃取
+由于每个任务花费的时间不同（比如磁盘、网络访问慢），导致有的线程很闲、有的很忙，为了平衡工作量，有了工作窃取算法
+- 首先，将任务差不多平均分配到 ForkJoinPool 中的所有线程上
+- 其次，每个线程都将分配到的任务保存在一个双端队列中
+    - 每完成一个任务，就从队列头取出下一个任务执行
+- 当任自己的务队列为空时，其他线程还很忙
+    - 随机选择一个其他线程
+    - 从队列尾部"偷走"一个任务执行
+- 划分成许多小任务而不是少数几个大任务，有助于更好的在工作线程之间平衡负载
+### 7.3 Spliterator
+- Java 8 中的一个新接口
+- 可分迭代器（splitable iterator）
+- 和 Iterator 一样，用于遍历数据源中的元素，但它是为了并行执行而设计
+#### 7.3.1 拆分过程
+#### 7.3.2 实现你自己的 Spliterator 😅太高级了，看书吧
+## 第 8 章 Collection API 的增强功能
+### 8.1 集合工厂
+Arrays.asList
+- 创建一个固定大小的列表
+- 列表的元素可以更新
+- 列表的元素不能增加、删除
+```java
+List<String> friends = Arrays.asList("Raphael", "Olivia");
+```
+#### 8.1.1 List 工厂
+List.of 创建一个列表
+- 创建的是一个只读列表
+- 可以更新元素
+- 不能添加、删除元素
+```java
+List<String> friends5 = List.of("Raphael", "Olivia", "Thibaut");
+```
+#### 8.1.2 Set 工厂
+Set.of
+```java
+Set<String> friends = Set.of("Raphael", "Olivia", "Thibaut");
+```
+#### 8.1.3 Map 工厂
+- Map.of
+- Map.ofEntries
+```java
+ private static void creatingMaps() {
+    System.out.println("--> Creating a Map with Map.of()");
+    Map<String, Integer> ageOfFriends = Map.of("Raphael", 30, "Olivia", 25, "Thibaut", 26);
+    System.out.println(ageOfFriends);
+
+    System.out.println("--> Creating a Map with Map.ofEntries()");
+    Map<String, Integer> ageOfFriends2 = Map.ofEntries(
+        entry("Raphael", 30),
+        entry("Olivia", 25),
+        entry("Thibaut", 26));
+    System.out.println(ageOfFriends2);
+  }
+```
+### 8.2 使用 List 和 Set
+因为集合的修改烦琐且容易出错，所以添加了两个方法解决这个问题：
+- removeIf
+- replaceAll
+
+```java
+List<Integer> list = new ArrayList<>();
+list.add(1);
+list.add(2);
+list.add(30);
+```
+```java
+list.removeIf(i -> i > 10);
+// [1, 2]
+```
+```java
+list.replaceAll(i -> i > 10 ? i / 10 : i);
+// [1, 2, 3]
+```
+### 8.3 使用 Map
+- forEach 遍历 Map
+- 排序
+    - Entry.comparingByKey
+    - Entry.comparingByValue
+- getOrDefault 方法
+    - 解决要查找的键在 Map 中不存在
+    - 第一个参数作为键，第二个参数为默认值
+- 计算模式
+    - [computeIfAbsent](####computeIfAbsent)：如果指定的键没有对应的值（键不存在或该键对应的值是空），添加新的值（与原来的值进行合并操作）
+    - computeIfPresent
+    - compute
+    
+Map.Entry.comparingByKey
+```java
+        Map<String, String> favouriteMovies = Map.ofEntries(
+                entry("Raphael", "Star Wars"),
+                entry("Cristina", "Matrix"),
+                entry("Olivia", "James Bond"));
+        favouriteMovies.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEachOrdered(System.out::println);
+```
+
+#### computeIfAbsent
+```java
+        Map<String, List<String>> friendsToMovies = new HashMap<>();
+
+        String friend = "小刚";
+        friendsToMovies.clear();
+        friendsToMovies.computeIfAbsent(friend, name -> new ArrayList<>())
+                .add("星球大战");
+        System.out.println(friendsToMovies);
+        // {小刚=[星球大战]}
+        friendsToMovies.computeIfAbsent(friend, name -> new ArrayList<>())
+                .add("星际争霸");
+        System.out.println(friendsToMovies);
+        // {小刚=[星球大战, 星际争霸]}
+        friendsToMovies.computeIfAbsent(friend, name -> new ArrayList<>())
+                .add("星际争霸");
+        System.out.println(friendsToMovies);
+        // {小刚=[星球大战, 星际争霸, 星际争霸]}
+```
+
+
 
 
 ---

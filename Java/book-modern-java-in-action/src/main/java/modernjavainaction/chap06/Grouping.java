@@ -53,10 +53,14 @@ public class Grouping {
   }
 
   private static Map<Dish.Type, List<Dish>> groupCaloricDishesByType() {
-    //return menu.stream().filter(dish -> dish.getCalories() > 500).collect(groupingBy(Dish::getType));
+//    return menu.stream()
+//            .filter(dish -> dish.getCalories() > 500)
+//            .collect(groupingBy(Dish::getType));
+      // {OTHER=[french fries, pizza], MEAT=[pork, beef]}
     return menu.stream().collect(
         groupingBy(Dish::getType,
             filtering(dish -> dish.getCalories() > 500, toList())));
+    // {OTHER=[french fries, pizza], MEAT=[pork, beef], FISH=[]}
   }
 
   private static Map<CaloricLevel, List<Dish>> groupDishesByCaloricLevel() {
