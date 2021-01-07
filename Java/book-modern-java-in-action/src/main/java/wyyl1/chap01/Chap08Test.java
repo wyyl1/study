@@ -147,6 +147,10 @@ public class Chap08Test {
         gameMap.merge(gameName, 1, (k, v) -> v + 1);
         System.out.println(gameMap);
         // {巫师3=2}
+
+        gameMap.merge("英雄无敌", 1, (k, v) -> v + 1);
+        System.out.println(gameMap);
+        // {英雄无敌=1, 巫师3=2}
     }
 
 }

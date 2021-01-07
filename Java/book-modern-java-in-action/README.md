@@ -891,8 +891,12 @@ list.replaceAll(i -> i > 10 ? i / 10 : i);
         gameMap.merge(gameName, 1, (k, v) -> v + 1);
         System.out.println(gameMap);
         // {巫师3=2}
-```
 
+        gameMap.merge("英雄无敌", 1, (k, v) -> v + 1);
+        System.out.println(gameMap);
+        // {英雄无敌=1, 巫师3=2}
+```
+### 8.4 改进的 ConcurrentHashMap
 
 
 
