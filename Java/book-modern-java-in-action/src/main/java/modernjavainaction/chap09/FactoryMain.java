@@ -15,7 +15,10 @@ public class FactoryMain {
     System.out.printf("p2: %s%n", p2.getClass().getSimpleName());
 
     Product p3 = ProductFactory.createProductLambda("loan");
-    System.out.printf("p3: %s%n", p3.getClass().getSimpleName());
+    System.out.printf("p3: %s %s%n", p3.getClass().getSimpleName(), p3);
+
+    Product p4 = ProductFactory.createProductLambda("loan");
+    System.out.printf("p4: %s %s%nj", p4.getClass().getSimpleName(), p4);
   }
 
   static private class ProductFactory {

@@ -1,9 +1,8 @@
 package wyyl1.chap01;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 
@@ -12,14 +11,32 @@ import static java.util.Map.entry;
  * @date 2021/1/5
  */
 public class Chap08Test {
-    public static void main(String[] args) {
+    /*public static void main(String[] args) {
 //        computingOnMaps();
 //        computeIfPresentTest();
 //        computeTest();
 //        removeTest();
 //        replaceAllTest();
 //        mergingMaps();
-        mergingTest();
+//        mergingTest();
+    }*/
+
+    public static void main(String[] args) {
+        String[] list = new String[]{"a", "b,c", "d,e,f", "g"};
+        List<String> result = Arrays.stream(list)
+                // 接受一个 Lambda，将元素转换成其他形式或提取信息
+                .map(chars -> chars.split(","))
+                // 让你把一个流中的每个值都换成另一个流，然后把所有的流连接起来成为一个流
+                .flatMap(Arrays::stream)
+                .collect(Collectors.toList());
+        System.out.println(result);
+        // 输出 [a, b, c, d, e, f, g]
+
+        long random = System.currentTimeMillis() - 1610000000000L;
+        System.out.println(random);
+
+        String name = "两个3两个两个两个ss";
+        System.out.println(name.length());
     }
 
     private static void computingOnMaps() {

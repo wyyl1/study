@@ -897,8 +897,194 @@ list.replaceAll(i -> i > 10 ? i / 10 : i);
         // {英雄无敌=1, 巫师3=2}
 ```
 ### 8.4 改进的 ConcurrentHashMap
+推荐使用 mappingCount 代替 size 方法
+## 第 9 章 重构、测试和调试
+### 9.1 为改善可读性和灵活性重构代码
+#### 9.1.1 改善代码的可读性
+三种简单的重构：
+- 用 Lambda 表达式取代匿名类；
+    - 匿名类的类型是在初始化时确定的
+    - Lambda 的类型取决于它的上下文
+- 用方法引用重构 Lambda 表达式；
+    - 更清晰地表达问题陈述是什么
+- 用 Stream API 重构命令式的数据处理
+    - 更清晰地表达数据处理管道的意图
+### 9.2 使用 Lambda 重构面向对象的设计模式
+- 策略模式（9.2.1）
+- 模板方法（9.2.2）
+- 观察者模式（9.2.3）
+    - 适合逻辑简单的情况下使用 Lambda 表达式
+- 责任链模式（9.2.4）
+- 工厂模式
+    - 使用 Supplier 包装产品
+```java
+  final static private Map<String, Supplier<Product>> map = new HashMap<>();
+  static {
+    map.put("loan", Loan::new);
+    map.put("stock", Stock::new);
+    map.put("bond", Bond::new);
+  }
 
+  public static Product createProductLambda(String name) {
+      Supplier<Product> p = map.get(name);
+      if (p != null) {
+        return p.get();
+      }
+      throw new RuntimeException("No such product " + name);
+    }
+```
+多个参数时就没那么好看了
+```java
+interface TriFunction<T, U, V, R>{
+  R apply(T t, U u, V v);
+}
 
+Map<String, TriFunction<Integer, Integer, String, Product>> map = new HashMap<>();
+```
+### 9.4.2 使用日志调试
+- peek
+```java
+    List<Integer> result = Stream.of(2, 3, 4, 5)
+        .peek(x -> System.out.println("taking from stream: " + x))
+        .map(x -> x + 17)
+        .peek(x -> System.out.println("after map: " + x))
+        .filter(x -> x % 2 == 0)
+        .peek(x -> System.out.println("after filter: " + x))
+        .limit(3)
+        .peek(x -> System.out.println("after limit: " + x))
+        .collect(toList());
+```
+## 第 10 章 基于 Lambda 的领域特定语言
+
+### 10.5 小结
+引入 DSL 的主要目的是为了弥补程序员与领域专家之间对程序认知理解上的差异
+
+## 第 11 章 用 Optional 取代 null
+### 11.3 应用 Optional 的几种模式
+#### 11.3.1 创建 Optional 对象
+
+##### 01 声明一个空的 Optional
+
+```java
+Optional<Car> optCar = Optional.empty();
+```
+
+##### 02 依据一个非空值创建 Optional
+- 如果 car 是一个 null， 代码会立即抛出 NullPointerException
+
+```java
+Optional<Car> optCar = Optional.of(car);
+```
+##### 03 可接受 null 的 Optional
+- 如果 car 是 null，那么得到的 Optional 对象就是空对象
+```java
+Optional<Car> optCar = Optional.ofNullable(car);
+```
+#### 11.3.2 使用 map 从 Optional 对象中提取和转换值
+```java
+Optional<Insurance> optInsurance = Optional.ofNullable(insurance);
+Optional<String> name = optInsurance.map(Insurance::getName);
+```
+#### 11.3.3 使用 flatMap 链接 Optional 对象
+##### 01 使用 Optional 获取 car 的保险公司名称
+- 🧨 一样会抛出 NullPointerException
+- 不需要大量的 if else 分支判断
+- 通过类型系统让你的域模型中隐藏的知识显示地提现在代码中
+  - 人不一定有车、有保险
+  - 保险公司一定有名称（如果没有，是因为数据出错，而不是代码问题） 
+```java
+  public String getCarInsuranceName(Optional<Person> person) {
+    return person.flatMap(Person::getCar)
+        .flatMap(Car::getInsurance)
+        .map(Insurance::getName)
+        .orElse("Unknown");
+  }
+```
+#### 11.3.4 操纵由 Optional 对象构成的 Stream
+- 🧨 一样会抛出 NullPointerException
+```java
+  public Set<String> getCarInsuranceNames(List<Person> persons) {
+    return persons.stream()
+        .map(Person::getCar)
+        .map(optCar -> optCar.flatMap(Car::getInsurance))
+        .map(optInsurance -> optInsurance.map(Insurance::getName))
+        .flatMap(Optional::stream)
+        .collect(toSet());
+  }
+```
+#### 11.3.5 默认行为及解引用 Optional 对象
+
+- get()
+  - 最简单但最不安全
+  - 相对于嵌套式的 null 检查，并未体现出多大改进
+- orElse(T other)
+  - 允许在 Optional 对象不包含值时提供一个默认值
+- orElseGet(Supplier<? extends T> supplier)
+  - 是 orElse 方法的延迟调用版
+  - Supplier 方法只有在 Optional 对象不含值时才执行调用
+  - 如果创建默认值耗时费力，建议采用这种方式，提升程序性能
+  - 或者自己非常确定某个方法仅在 Optional 为空时才调用，也可以采用这种方式
+- or(Supplier<? extends Optional<? extends T>> supplier)
+  -  与 orElseGet 方法很像
+  -  不过它不会解包 Optional 对象中的值，即便该值是存在的
+  -  实战中
+     - Optional 对象含有值：不会执行任何额外操作，直接返回该 Optional 对象
+     - Optional 对象为空：该方法会延迟的返回一个不同的 Optional 对象
+- orElseThrow(Supplier<? extends X> exceptionSupplier)
+  - 和 get 方法非常类似
+  - 遭遇 Optional 对象为空时都会抛出一个异常
+  - 但使用 orElseThrow 你可以定制希望抛出的异常类型  
+- ifPresent(Consumer<? super T> action)
+  - 变量值存在时，执行一个以参数形式传入的方法
+  - 否则就不进行任何操作
+- ifPresentOrElse(Consumer<? super T> action, Runnable emptyAction)
+  - Java 9 引入的一个新的实例方法
+  - 该方法不同于 ifPresent
+  - 接受一个 Runnable 方法，如果 Optional 对象为空，就执行该方法所定义的动作
+### 11.4 使用 Optional 的实战示例
+
+## 第12章 新的日期和时间 API
+- Joda-Time 第三方日期和时间库
+
+### 12.1 LocalDate、LocalTime、LocalDateTime、Instant、Duration 以及 Period
+#### 12.1.1 使用 LocalDate 和 LocalTime
+##### LocalDate
+  - 是一个不可变对象
+  - 只提供了简单的日期
+  - 不含当天的时间信息
+  - 也不附带任何与时区相关的信息
+  
+可以通过静态工厂方法 of 创建一个 LocalDate 实例
+```java
+    LocalDate date = LocalDate.of(2014, 3, 18);
+    int year = date.getYear(); // 2014
+    Month month = date.getMonth(); // MARCH
+    int day = date.getDayOfMonth(); // 18
+    DayOfWeek dow = date.getDayOfWeek(); // TUESDAY
+    int len = date.lengthOfMonth(); // 31 (days in March)
+    boolean leap = date.isLeapYear(); // false (not a leap year)
+    System.out.println(date);
+```
+还可以使用工厂方法 now 从系统时钟获取当前的日期
+```java
+LocalDate today = LocalDate.now();
+```
+##### LocalTime
+- 可以表示一天中的时间，比如 13:45:20
+```java
+    LocalTime time = LocalTime.of(13, 45, 20); // 13:45:20
+    int hour = time.getHour(); // 13
+    int minute = time.getMinute(); // 45
+    int second = time.getSecond(); // 20
+    System.out.println(time);
+```
+
+使用静态方法 parse 也可以创建
+```java
+LocalDate date = LocalDate.parse("2017-09-21");
+LocalTime time = LocalTime.parse("13:45:20");
+```
+#### 12.1.2 合并日期和时间
 
 
 
