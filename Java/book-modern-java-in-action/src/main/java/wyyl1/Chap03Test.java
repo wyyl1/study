@@ -1,4 +1,4 @@
-package wyyl1.chap01;
+package wyyl1;
 
 import java.util.ArrayList;
 import java.util.function.Function;

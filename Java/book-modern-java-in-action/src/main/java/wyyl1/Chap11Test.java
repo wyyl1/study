@@ -1,4 +1,4 @@
-package wyyl1.chap01;
+package wyyl1;
 
 import modernjavainaction.chap11.Car;
 import modernjavainaction.chap11.OptionalMain;

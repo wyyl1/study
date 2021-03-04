@@ -1,4 +1,4 @@
-package wyyl1.chap01;
+package wyyl1;
 
 import java.time.DayOfWeek;
 import java.time.temporal.ChronoField;

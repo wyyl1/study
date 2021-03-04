@@ -1,4 +1,4 @@
-package wyyl1.chap01;
+package wyyl1;
 
 import java.io.File;
 import java.util.Arrays;
