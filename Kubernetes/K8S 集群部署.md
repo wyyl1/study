@@ -24,7 +24,7 @@ $ mkdir -p /etc/docker
 
 $ tee /etc/docker/daemon.json <<-'EOF'
 {
-  "registry-mirrors": ["https://rmpv334g.mirror.aliyuncs.com"]
+  "registry-mirrors": ["https://yongzijide.mirror.aliyuncs.com"]
 }
 EOF
 

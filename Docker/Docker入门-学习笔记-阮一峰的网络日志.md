@@ -2,7 +2,15 @@
 
 - [Docker 微服务教程](http://www.ruanyifeng.com/blog/2018/02/docker-wordpress-tutorial.html)
 
+**查看docker镜像**
+
+```cmd
+docker info|grep Mirrors -A 1
+```
+
 **仓库网址改成国内的镜像站**
+> ⚠️ 如果您使用“/etc/docker/daemon.json”修改镜像源，请忽略此步骤
+
 打开/etc/default/docker文件（需要sudo权限），在文件的底部加上一行。
 
 ```cmd

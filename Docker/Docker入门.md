@@ -13,7 +13,29 @@ ENTRYPOINT ["java","-jar","/app.jar"]
 
 - 从尺寸上来讲，alpine最小、slim稍大、默认的最大
 
-Container内的程序以非root用户启动
+### 设定正确的时区
+
+几乎所有的Docker Image的时区都是UTC，我们需要给我们自己制作的Docker Image设定时区：
+
+```cmd
+ENV TZ=Asia/Shanghai
+RUN set -eux; \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime; \
+    echo $TZ > /etc/timezone
+```
+
+如果是alpine系列的则要安装tzdata：
+
+```cmd
+ENV TZ=Asia/Shanghai
+RUN set -eux; \
+    apk add --no-cache --update tzdata; \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime; \
+    echo $TZ > /etc/timezone
+```
+
+### Container内的程序以非root用户启动
+
 在Docker Image内部，我们应该使用非root用户启动程序，这需要新建用户。
 
 如果你用的是 **openjdk:<version>-alpine** 新建用户命令是这样的：
@@ -79,4 +101,5 @@ $ docker rmi <REPOSITORY>
 - [Spring Boot with Docker](https://spring.io/guides/gs/spring-boot-docker/)
 - [Java程序制作Docker Image推荐方案](https://segmentfault.com/a/1190000016449865)
 - [Docker build 命令](https://www.runoob.com/docker/docker-build-command.html)
+- 官方文档 [Best practices for writing Dockerfiles](https://docs.docker.com/develop/develop-images/dockerfile_best-practices/)
 

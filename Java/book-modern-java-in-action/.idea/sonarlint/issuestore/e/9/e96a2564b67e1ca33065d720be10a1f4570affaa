@@ -1,0 +1,15 @@
+
+k	java:S117"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(—š®îùÿÿÿÿ
+k	java:S117"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(Åÿ‚¼ÿÿÿÿÿ
+k	java:S117"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(Œ¾ÌÚùÿÿÿÿ
+S	java:S106"9Replace this use of System.out or System.err by a logger.(ºÕªÙúÿÿÿÿ
+N	java:S106"9Replace this use of System.out or System.err by a logger.(ûÉÉÇ
+S	java:S106"9Replace this use of System.out or System.err by a logger.(¶º¸þÿÿÿÿÿ
+V	java:S125"<This block of commented-out lines of code should be removed.(Ì£ûøÿÿÿÿ
+_
+java:S3358G"DExtract this nested ternary operation into an independent statement.(õÆÇëÿÿÿÿÿ
+_
+java:S3358z"DExtract this nested ternary operation into an independent statement.(‡ìí®ùÿÿÿÿ
+p
+java:S2293€"YReplace the type specification in this constructor call with the diamond operator ("<>").(Šµ–ö
+O	java:S106‹"9Replace this use of System.out or System.err by a logger.(ØÖþÏ
